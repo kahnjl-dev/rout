@@ -372,6 +372,11 @@
     <h2>CHOOSE YOUR WARBAND</h2>
     <div class="sub2">Leader morale is your floor — the points you keep even if the field is lost.</div>
     <div class="picks" id="picks"></div>
+    <div class="foot" style="margin-top:16px">
+      <button class="flink" id="pickRules">RULES</button>
+      <span>·</span>
+      <button class="flink strong" id="pickLog">HOW THIS WAS BUILT</button>
+    </div>
   </div>
 </div>
 
@@ -1400,6 +1405,9 @@ $('#openRules').onclick  = openRules;
 $('#rulesClose').onclick = ()=>$('#rulesOv').classList.add('hide');
 $('#openLog').onclick    = openLog;
 $('#logClose').onclick   = ()=>$('#logOv').classList.add('hide');
+// the picker covers the whole screen on load, so the landing screen needs its own pair
+$('#pickRules').onclick  = openRules;
+$('#pickLog').onclick    = openLog;
 
 // a valid board exists behind the overlay so render() never sees a null side
 playerFaction = 'HUMANS';
