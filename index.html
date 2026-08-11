@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ROUT — Lane Toy</title>
+<title>ROUT</title>
 <style>
   :root{
     --bg:#0d0f13; --panel:#161a20; --line:#272d37; --text:#e7eaf0; --dim:#89919f; --faint:#525a68;
@@ -153,7 +153,7 @@
   <div class="board" id="board"></div>
 
   <div class="leader you">
-    <span class="who">LEADER <b>YOU</b></span>
+    <span class="who">LEADER <b id="pName">—</b></span>
     <span class="val" id="pBase">0</span>
   </div>
 
@@ -166,10 +166,8 @@
   <div id="endSlot"></div>
 
   <div class="ctrls">
-    <select id="faction">
-      <option value="GOBLINS">GOBLINS · fast, fragile</option>
-      <option value="DWARVES">DWARVES · slow, armoured</option>
-    </select>
+    <select id="pFaction" title="your faction"></select>
+    <select id="eFaction" title="enemy faction"></select>
     <button class="btn" id="restart">NEW RUN</button>
   </div>
 
@@ -187,34 +185,48 @@ const LANE_BOUNTY = [2, 3, 2];
 const WAVES = 3;
 const HAND_SIZE = 5;
 
-const PLAYER = {
-  name:'YOU', base:10,
-  deck:[
-    {n:'LANCE',   s:8, g:3, m:2},
-    {n:'SPEAR',   s:6, g:3, m:3},
-    {n:'BLADE',   s:7, g:4, m:2},
-    {n:'SHIELD',  s:2, g:7, m:3},
-    {n:'WALL',    s:1, g:7, m:4},
-    {n:'BULWARK', s:3, g:6, m:3},
-    {n:'BANNER',  s:2, g:4, m:7},
-    {n:'STANDARD',s:3, g:5, m:6},
-  ]
-};
-
+// Every faction is playable by either side. Base morale is the ONLY faction axis —
+// all decks total 30 card morale so the two never compound. See assertDecks().
 const FACTIONS = {
-  GOBLINS:{ name:'GOBLINS', base:8, style:'swarm', deck:[
+  HUMANS:{ name:'HUMANS', base:10, style:'even',
+    blurb:'Balanced. No weakness to exploit, no edge to lean on.', deck:[
+    {n:'LANCE',   s:8, g:3, m:2},{n:'SPEAR',   s:6, g:3, m:3},
+    {n:'BLADE',   s:7, g:4, m:2},{n:'SHIELD',  s:2, g:7, m:3},
+    {n:'WALL',    s:1, g:7, m:4},{n:'BULWARK', s:3, g:6, m:3},
+    {n:'BANNER',  s:2, g:4, m:7},{n:'STANDARD',s:3, g:5, m:6},
+  ]},
+  GOBLINS:{ name:'GOBLINS', base:8, style:'swarm',
+    blurb:'Vicious and brittle. Kill fast, die faster, low morale to defend.', deck:[
     {n:'CLAW', s:9, g:3, m:1},{n:'FANG', s:8, g:3, m:2},
     {n:'RUSH', s:7, g:3, m:2},{n:'SWARM',s:6, g:4, m:3},
     {n:'SPITE',s:5, g:3, m:4},{n:'HOWL', s:4, g:4, m:5},
     {n:'TOTEM',s:2, g:5, m:6},{n:'IDOL', s:1, g:4, m:7},
   ]},
-  DWARVES:{ name:'DWARVES', base:12, style:'hold', deck:[
+  DWARVES:{ name:'DWARVES', base:12, style:'hold',
+    blurb:'Immovable. Hard to break, hard to break out of, high morale to beat.', deck:[
     {n:'GATE',   s:1, g:7, m:2},{n:'ANVIL', s:2, g:7, m:2},
     {n:'RAMPART',s:2, g:6, m:3},{n:'FORGE', s:3, g:6, m:3},
     {n:'HAMMER', s:5, g:5, m:3},{n:'AXE',   s:4, g:5, m:4},
     {n:'RUNE',   s:2, g:4, m:6},{n:'THRONE',s:1, g:4, m:7},
   ]},
 };
+const FACTION_KEYS = Object.keys(FACTIONS);
+
+// guards the one invariant that matters: card morale must not vary by faction,
+// or factions differ on two axes at once and matchups stop being reasonable about.
+function assertDecks(){
+  const bad = [];
+  for(const k of FACTION_KEYS){
+    const f = FACTIONS[k];
+    const total = f.deck.reduce((a,c)=>a+c.m,0);
+    if(total !== 30) bad.push(`${k} card morale ${total}, expected 30`);
+    if(f.deck.length !== 8) bad.push(`${k} has ${f.deck.length} cards, expected 8`);
+    for(const c of f.deck) if(c.g < 3 || c.g > 7) bad.push(`${k}/${c.n} guard ${c.g} outside 3-7`);
+  }
+  if(bad.length) console.warn('[ROUT] deck invariant broken:\n  ' + bad.join('\n  '));
+  return bad;
+}
+assertDecks();
 
 // ═══════════════════════════════════════════════ HELPERS
 const $ = s => document.querySelector(s);
@@ -237,7 +249,7 @@ let G, sel = null, busy = false, fightNo = 1;
 
 function newRun(){
   fightNo = 1;
-  G = { you: mkSide(PLAYER), them: mkSide(FACTIONS[$('#faction').value]) };
+  G = { you: mkSide(FACTIONS[$('#pFaction').value]), them: mkSide(FACTIONS[$('#eFaction').value]) };
   newFight();
 }
 function newFight(){
@@ -279,6 +291,7 @@ function render(){
   $('#meta').textContent = `fight ${fightNo} · wave ${Math.min(G.wave,WAVES)}/${WAVES}`;
   $('#eName').textContent = G.them.name;
   $('#eBase').textContent = G.them.base;
+  $('#pName').textContent = G.you.name;
   $('#pBase').textContent = G.you.base;
   $('#deckInfo').textContent = `deck ${G.you.deck.length}`;
 
@@ -327,7 +340,7 @@ function enemyChoose(){
     for(let L=0; L<3; L++){
       let v = 0;
       const myStrike = laneStrike(s,L) + card.s;
-      const foeFront = G.you.lanes[L][0];
+      const foeFront = frontOf(G.you, L);          // living front, not a corpse
       // reward breaking their front card
       if(foeFront){
         if(myStrike >= foeFront.g*2) v += 8 + foeFront.m*1.5;
@@ -342,8 +355,8 @@ function enemyChoose(){
       if(threat >= card.g*2) v -= 5 + card.m;
       else if(threat >= card.g) v -= 2 + card.m*0.5;
       // faction posture
-      if(s.style==='swarm') v += laneStrike(s,L) * 0.5;        // pile in
-      if(s.style==='hold')  v += (s.lanes[L].length===0 ? 2.5 : 0); // spread out
+      if(s.style==='swarm') v += laneStrike(s,L) * 0.5;                    // pile in
+      if(s.style==='hold')  v += (living(s.lanes[L]).length===0 ? 2.5 : 0); // spread out
       v += Math.random()*2.2;
       if(!best || v > best.v) best = {v, hi, L, card};
     }
@@ -489,8 +502,18 @@ function finish(){
 }
 
 // ═══════════════════════════════════════════════ BOOT
-$('#restart').onclick = newRun;
-$('#faction').onchange = newRun;
+function fillFactionSelect(sel, chosen){
+  sel.innerHTML = FACTION_KEYS.map(k=>{
+    const f = FACTIONS[k];
+    return `<option value="${k}" ${k===chosen?'selected':''}>${f.name} · leader ${f.base}</option>`;
+  }).join('');
+}
+fillFactionSelect($('#pFaction'), 'HUMANS');
+fillFactionSelect($('#eFaction'), 'GOBLINS');
+
+$('#restart').onclick  = newRun;
+$('#pFaction').onchange = newRun;
+$('#eFaction').onchange = newRun;
 newRun();
 </script>
 </body>
