@@ -163,6 +163,24 @@
   .pk .bar .track{flex:1;height:5px;background:#0a0d11;border-radius:3px;overflow:hidden}
   .pk .bar .fill{height:100%;border-radius:3px}
   .pk .bar .num{width:20px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
+  .pk .cost{font-size:10px;color:var(--faint);margin-top:8px;line-height:1.45;border-top:1px solid var(--line);padding-top:7px}
+  .pk .cost b{color:var(--dim)}
+
+  /* run progress + loss penalty */
+  .rungstrip{display:flex;justify-content:center;gap:7px;margin-bottom:14px;font-size:10px;letter-spacing:.15em;color:var(--faint)}
+  .rungstrip span{display:flex;align-items:center;gap:5px}
+  .rungstrip i{font-style:normal;font-size:13px;color:#39414d}
+  .rungstrip i.done{color:var(--you)}
+  .rungstrip i.lost{color:var(--them)}
+  .rungstrip i.now{color:var(--m)}
+  .pen{
+    margin-top:8px;font-size:11px;line-height:1.5;color:var(--m);
+    background:rgba(255,196,74,.08);border:1px solid rgba(255,196,74,.25);
+    border-radius:6px;padding:8px 10px;
+  }
+  .pen b{color:var(--text)}
+  .runstat{font-size:11.5px;color:var(--dim);text-align:center;line-height:1.7;margin:12px 0}
+  .runstat b{color:var(--text)}
 </style>
 </head>
 <body>
@@ -194,7 +212,6 @@
   <div id="endSlot"></div>
 
   <div class="ctrls">
-    <select id="eFaction" title="enemy faction (temporary — the ladder replaces this)"></select>
     <button class="btn" id="restart">NEW RUN</button>
   </div>
 
@@ -213,6 +230,9 @@
     <div class="picks" id="picks"></div>
   </div>
 </div>
+
+<div class="overlay hide" id="branchPick"><div class="pickbox" id="branchBox"></div></div>
+<div class="overlay hide" id="runEnd"><div class="pickbox" id="runEndBox"></div></div>
 
 <script>
 // ═══════════════════════════════════════════════ TUNING
@@ -263,6 +283,35 @@ function assertDecks(){
 }
 assertDecks();
 
+// ═══════════════════════════════════════════════ LADDER
+// Three rungs then a boss. Difficulty rides on enemy leader morale, the same
+// axis factions already differ on — no new mechanic, no new numbers to read.
+const RUNG_BONUS = [0, 1, 2];
+const BOSS_BONUS = 4;
+const MIN_DECK   = 3;          // below this you cannot fill three waves
+
+const TITLES = {
+  HUMANS: ['FREE COMPANY','BORDER LEVY','OATHSWORN'],
+  GOBLINS:['RAIDING PACK','SCRAP WARBAND','GUTTER HOST'],
+  DWARVES:['HOLDFAST GUARD','DEEP WARDENS','ANVIL LINE'],
+};
+const BOSS_TITLES = { HUMANS:'THE LORD MARSHAL', GOBLINS:'THE CARRION KING', DWARVES:'THE UNDERMOUNTAIN THRONE' };
+
+function encounterFor(rung, faction){
+  const f = FACTIONS[faction], boss = rung >= 3;
+  return {
+    faction, isBoss: boss,
+    bonus: boss ? BOSS_BONUS : RUNG_BONUS[rung],
+    base:  f.base + (boss ? BOSS_BONUS : RUNG_BONUS[rung]),
+    title: boss ? BOSS_TITLES[faction] : TITLES[faction][rung % TITLES[faction].length],
+  };
+}
+// two *different* factions, so the branch is always a real contrast
+function rollBranches(rung){
+  const k = shuffle(FACTION_KEYS.slice());
+  return [encounterFor(rung, k[0]), encounterFor(rung, k[1])];
+}
+
 // ═══════════════════════════════════════════════ HELPERS
 const $ = s => document.querySelector(s);
 const wait = ms => new Promise(r=>setTimeout(r,ms));
@@ -283,24 +332,47 @@ function mkSide(src){
 let G, sel = null, busy = false, fightNo = 1;
 
 let playerFaction = 'HUMANS';
+let run = null;
 
-function newRun(){
+function startRun(){
+  run = { rung:0, wins:0, losses:0, lastLoss:false, done:false, history:[] };
+  G = { you: mkSide(FACTIONS[playerFaction]), them:null, wave:1, over:false };
   fightNo = 1;
-  G = { you: mkSide(FACTIONS[playerFaction]), them: mkSide(FACTIONS[$('#eFaction').value]) };
-  newFight();
+  offerBranch();
 }
-function newFight(){
-  for(const s of [G.you, G.them]){
-    s.lanes = [[],[],[]];
-    // routed cards recover and come back
-    s.fallen.forEach(c=>{ delete c.dead; delete c._tag; });
-    s.deck = s.deck.concat(s.fallen); s.fallen = [];
-    s.deck = shuffle(s.deck);
-    s.hand = s.deck.slice(0, HAND_SIZE);
+
+function beginFight(enc){
+  run.current = enc;
+  const you = G.you;
+  you.lanes = [[],[],[]];
+
+  if(run.lastLoss){
+    // LOSS PENALTY: you lost, so the routed don't rally — they scatter.
+    // Self-scaling: a narrow loss costs one card, a rout costs three.
+    you.fallen = [];
+    run.lastLoss = false;
+  } else {
+    you.fallen.forEach(c=>{ delete c.dead; delete c._tag; });
+    you.deck = you.deck.concat(you.fallen);
+    you.fallen = [];
   }
+  you.deck = shuffle(you.deck);
+  you.hand = you.deck.slice(0, Math.min(HAND_SIZE, you.deck.length));
+
+  // enemy is rebuilt fresh every fight — only the player's warband persists
+  const f = FACTIONS[enc.faction];
+  G.them = mkSide(f);
+  G.them.base  = enc.base;
+  G.them.title = enc.title;
+  G.them.deck  = shuffle(G.them.deck);
+  G.them.hand  = G.them.deck.slice(0, HAND_SIZE);
+
   G.wave = 1; G.over = false; sel = null; busy = false;
   $('#endSlot').innerHTML = '';
-  say(`Fight ${fightNo}. Three waves. Pick a card, pick a lane.`);
+  hideOverlays();
+  say(enc.isBoss
+    ? `<b>${enc.title}</b> — the last fight. Three waves.`
+    : `<b>${enc.title}</b> — three waves. Pick a card, pick a lane.`);
   render();
 }
 
@@ -325,7 +397,10 @@ function laneMorale(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.m,0
 function laneStrike(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.s,0); }
 
 function render(){
-  $('#meta').textContent = `fight ${fightNo} · wave ${Math.min(G.wave,WAVES)}/${WAVES}`;
+  const rungLabel = run && run.current
+    ? (run.current.isBoss ? 'BOSS' : `rung ${run.rung+1}/3`)
+    : 'rung 1/3';
+  $('#meta').textContent = `${rungLabel} · wave ${Math.min(G.wave,WAVES)}/${WAVES}`;
   $('#eName').textContent = G.them.name;
   $('#eBase').textContent = G.them.base;
   $('#pName').textContent = G.you.name;
@@ -420,6 +495,10 @@ async function place(lane){
   sel = null;
 
   const pick = enemyChoose();
+  if(!pick){                                   // empty enemy hand: never lock the board
+    console.warn('[ROUT] enemy had no card to play');
+    G.you.hand.push(myCard); busy = false; render(); return;
+  }
   const foeCard = G.them.hand.splice(pick.hi,1)[0];
 
   // face down beat
@@ -516,71 +595,199 @@ function finish(){
   yTot += yB; tTot += tB;
   rows.push([`Lane bounties (${detail.join(', ')})`, yB, tB]);
 
-  const win = yTot>tTot ? 'w' : yTot<tTot ? 'l' : 'd';
-  const verdict = win==='w' ? 'YOU HOLD THE FIELD' : win==='l' ? 'YOU ARE ROUTED' : 'STALEMATE';
+  // tiebreak: morale, then most cards left standing, then the defender holds
+  let tieNote = '';
+  let won;
+  if(yTot !== tTot) won = yTot > tTot;
+  else {
+    const yc = [0,1,2].reduce((t,L)=>t+living(G.you.lanes[L]).length,0);
+    const tc = [0,1,2].reduce((t,L)=>t+living(G.them.lanes[L]).length,0);
+    won = yc > tc;
+    tieNote = yc===tc
+      ? ' · morale and cards tied — the defender holds'
+      : ` · morale tied, broken on cards standing (${yc} v ${tc})`;
+  }
+
+  const routedNow = G.you.fallen.length;
+  run.lastLoss = !won;
+  run.history[run.rung] = won ? 'w' : 'l';
+  if(won) run.wins++; else run.losses++;
+
+  const verdict = won ? 'YOU HOLD THE FIELD' : 'YOU ARE ROUTED';
+  const penalty = (!won && routedNow)
+    ? `<div class="pen">Your side broke. <b>${routedNow}</b> routed card${routedNow>1?'s':''} scatter${routedNow>1?'':'s'} — gone for the run.</div>`
+    : (!won ? `<div class="pen">Your side broke, but nothing was left behind.</div>` : '');
+
+  // deck after this fight resolves
+  const deckAfter = G.you.deck.length + (won ? routedNow : 0);
+  const wiped   = deckAfter < MIN_DECK;
+  const bossWon = won && run.current.isBoss;
+  run.done = wiped || bossWon || (run.rung >= 3);
+
+  let btn;
+  if(bossWon)      btn = `<button class="btn p" id="next">CLAIM THE FIELD →</button>`;
+  else if(wiped)   btn = `<button class="btn p" id="next">YOUR WARBAND IS SPENT →</button>`;
+  else if(run.current.isBoss) btn = `<button class="btn p" id="next">THE RUN ENDS →</button>`;
+  else             btn = `<button class="btn p" id="next">${won?'PRESS ON':'FALL BACK'} →</button>`;
 
   $('#endSlot').innerHTML = `<div class="end">
-    <h2>FIGHT ${fightNo} — FINAL MORALE</h2>
+    <h2>${run.current.title} — FINAL MORALE</h2>
     <table class="tbl">
       <tr><td style="color:var(--faint)"></td><td class="yv">YOU</td><td class="tv">${G.them.name}</td></tr>
       ${rows.map(r=>`<tr><td style="color:var(--dim)">${r[0]}</td><td class="yv">${r[1]}</td><td class="tv">${r[2]}</td></tr>`).join('')}
       <tr class="tot"><td></td><td class="yv">${yTot}</td><td class="tv">${tTot}</td></tr>
     </table>
-    <div class="verdict ${win}">${verdict}</div>
-    <div class="ctrls"><button class="btn p" id="next">NEXT FIGHT →</button></div>
+    <div class="verdict ${won?'w':'l'}">${verdict}${tieNote}</div>
+    ${penalty}
+    <div class="ctrls">${btn}</div>
   </div>`;
-  // fix table column alignment (3 cols)
   document.querySelectorAll('.tbl tr').forEach(tr=>{
     if(tr.children.length===3) tr.children[1].style.textAlign='right';
   });
-  $('#next').onclick = ()=>{ fightNo++; newFight(); };
-  say(`Deck now <b>${G.you.deck.length + G.you.fallen.length}</b> cards. Eliminated cards are gone for the run.`);
+
+  $('#next').onclick = ()=>{
+    if(bossWon || wiped || run.current.isBoss){ showRunEnd(bossWon, wiped); return; }
+    run.rung++; fightNo++;
+    offerBranch();
+  };
+
+  say(`Warband: <b>${deckAfter}</b> cards. Eliminated cards never come back.`);
   render();
 }
 
 // ═══════════════════════════════════════════════ BOOT
-function fillFactionSelect(sel, chosen){
-  sel.innerHTML = FACTION_KEYS.map(k=>{
-    const f = FACTIONS[k];
-    return `<option value="${k}" ${k===chosen?'selected':''}>vs ${f.name}</option>`;
-  }).join('');
-}
-fillFactionSelect($('#eFaction'), 'GOBLINS');
-
 // deck shape, so the pick is informed without listing eight cards
 const avg = (deck,k) => deck.reduce((a,c)=>a+c[k],0) / deck.length;
+
+function hideOverlays(){
+  ['#factionPick','#branchPick','#runEnd'].forEach(s=>$(s).classList.add('hide'));
+}
+
+function shapeBars(f){
+  const s = avg(f.deck,'s'), g = avg(f.deck,'g');
+  return `<div class="bars">
+    <div class="bar"><span>▲ STRIKE</span>
+      <span class="track"><span class="fill" style="width:${s/9*100}%;background:var(--s)"></span></span>
+      <span class="num">${s.toFixed(1)}</span></div>
+    <div class="bar"><span>⬢ GUARD&nbsp;</span>
+      <span class="track"><span class="fill" style="width:${g/7*100}%;background:var(--g)"></span></span>
+      <span class="num">${g.toFixed(1)}</span></div>
+  </div>`;
+}
+
+// what this branch actually costs you, in plain language
+function threatLine(f){
+  const s = avg(f.deck,'s');
+  const deckToll = s >= 4.5 ? 'will tear your warband apart'
+                 : s >= 3.5 ? 'will cost you a few cards'
+                 : 'can barely scratch you';
+  return deckToll;
+}
+
+function rungStrip(){
+  const marks = [0,1,2,3].map(i=>{
+    const h = run.history[i];
+    const cls = h === 'w' ? 'done' : h === 'l' ? 'lost' : (i === run.rung ? 'now' : '');
+    return `<i class="${cls}">${i===3?'★':'●'}</i>`;
+  }).join('');
+  return `<div class="rungstrip"><span>${marks}</span><span>· ${run.wins}W ${run.losses}L</span></div>`;
+}
+
+function offerBranch(){
+  hideOverlays();
+  if(run.rung >= 3){          // boss: no choice, just the wall
+    const enc = encounterFor(3, shuffle(FACTION_KEYS.slice())[0]);
+    const f = FACTIONS[enc.faction];
+    $('#branchBox').innerHTML = `
+      ${rungStrip()}
+      <h2>THE LAST FIGHT</h2>
+      <div class="sub2">No branch. No way around it.</div>
+      <div class="picks">
+        <button class="pk" data-i="0">
+          <div class="top"><span class="fn">${enc.title}</span>
+            <span class="lead">LEADER MORALE<b>${enc.base}</b></span></div>
+          <div class="bl">${f.blurb}</div>
+          ${shapeBars(f)}
+          <div class="cost">Warband: <b>${G.you.deck.length + G.you.fallen.length}</b> cards left.</div>
+        </button>
+      </div>`;
+    $('#branchBox').querySelector('.pk').onclick = ()=>beginFight(enc);
+    $('#branchPick').classList.remove('hide');
+    return;
+  }
+
+  const opts = rollBranches(run.rung);
+  $('#branchBox').innerHTML = `
+    ${rungStrip()}
+    <h2>CHOOSE YOUR ROAD</h2>
+    <div class="sub2">One of these can take the run. The other takes your warband.</div>
+    <div class="picks">
+      ${opts.map((enc,i)=>{
+        const f = FACTIONS[enc.faction];
+        return `<button class="pk" data-i="${i}">
+          <div class="top"><span class="fn">${enc.title}</span>
+            <span class="lead">LEADER MORALE<b>${enc.base}</b></span></div>
+          <div class="bl">${f.blurb}</div>
+          ${shapeBars(f)}
+          <div class="cost">${enc.base >= 12 ? 'Hard to outscore' : enc.base <= 9 ? 'Low morale to beat' : 'Middling morale to beat'} · ${threatLine(f)}.</div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  $('#branchBox').querySelectorAll('.pk').forEach(b=>{
+    b.onclick = ()=>beginFight(opts[+b.dataset.i]);
+  });
+  $('#branchPick').classList.remove('hide');
+}
+
+function showRunEnd(bossWon, wiped){
+  hideOverlays();
+  const left = G.you.deck.length + G.you.fallen.length;
+  const title = bossWon ? 'THE FIELD IS YOURS' : wiped ? 'YOUR WARBAND IS SPENT' : 'THE RUN ENDS';
+  const body  = bossWon
+      ? `You broke the last line with <b>${left}</b> cards still standing.`
+      : wiped
+      ? `Too few left to field three waves. The march stops here.`
+      : `You reached the end of the road but could not break it.`;
+  $('#runEndBox').innerHTML = `
+    ${rungStrip()}
+    <h2>${title}</h2>
+    <div class="runstat">${body}<br>
+      <b>${run.wins}</b> won · <b>${run.losses}</b> lost · playing <b>${FACTIONS[playerFaction].name}</b></div>
+    <div class="picks"><button class="pk" id="again"><div class="top">
+      <span class="fn">RUN AGAIN</span><span class="lead">new road, new warband</span></div></button></div>`;
+  $('#again').onclick = showPicker;
+  $('#runEnd').classList.remove('hide');
+}
 
 function renderPicks(){
   $('#picks').innerHTML = FACTION_KEYS.map(k=>{
     const f = FACTIONS[k];
-    const s = avg(f.deck,'s'), g = avg(f.deck,'g');
     return `<button class="pk" data-f="${k}">
       <div class="top">
         <span class="fn">${f.name}</span>
         <span class="lead">LEADER MORALE<b>${f.base}</b></span>
       </div>
       <div class="bl">${f.blurb}</div>
-      <div class="bars">
-        <div class="bar"><span>▲ STRIKE</span>
-          <span class="track"><span class="fill" style="width:${s/9*100}%;background:var(--s)"></span></span>
-          <span class="num">${s.toFixed(1)}</span></div>
-        <div class="bar"><span>⬢ GUARD&nbsp;</span>
-          <span class="track"><span class="fill" style="width:${g/7*100}%;background:var(--g)"></span></span>
-          <span class="num">${g.toFixed(1)}</span></div>
-      </div>
+      ${shapeBars(f)}
     </button>`;
   }).join('');
-  document.querySelectorAll('.pk').forEach(b=>{
-    b.onclick = ()=>{ playerFaction = b.dataset.f; $('#factionPick').classList.add('hide'); newRun(); };
+  // scope to #picks — branch screens also use .pk
+  $('#picks').querySelectorAll('.pk').forEach(b=>{
+    b.onclick = ()=>{ playerFaction = b.dataset.f; startRun(); };
   });
 }
 
-function showPicker(){ renderPicks(); $('#factionPick').classList.remove('hide'); }
+function showPicker(){
+  hideOverlays();
+  renderPicks();
+  $('#factionPick').classList.remove('hide');
+}
 
-$('#restart').onclick   = showPicker;
-$('#eFaction').onchange = newRun;
+$('#restart').onclick = showPicker;
 
-newRun();        // build a valid state behind the overlay
+// a valid board exists behind the overlay so render() never sees a null side
+playerFaction = 'HUMANS';
+startRun();
 showPicker();
 </script>
 </body>
