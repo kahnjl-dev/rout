@@ -138,7 +138,7 @@
 
   /* ---- run-start faction pick ---- */
   .overlay{
-    position:fixed;inset:0;background:rgba(8,10,13,.94);z-index:50;
+    position:fixed;inset:0;background:rgba(8,10,13,.975);backdrop-filter:blur(3px);z-index:50;
     display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;
   }
   .overlay.hide{display:none}
@@ -173,6 +173,8 @@
   .rungstrip i.done{color:var(--you)}
   .rungstrip i.lost{color:var(--them)}
   .rungstrip i.now{color:var(--m)}
+  .map{width:100%;max-width:310px;margin:0 auto 12px;display:block}
+  .map g[data-node]:hover circle:not([fill="transparent"]){filter:brightness(1.35)}
   .pen{
     margin-top:8px;font-size:11px;line-height:1.5;color:var(--m);
     background:rgba(255,196,74,.08);border:1px solid rgba(255,196,74,.25);
@@ -243,21 +245,21 @@ const HAND_SIZE = 5;
 // Every faction is playable by either side. Base morale is the ONLY faction axis —
 // all decks total 30 card morale so the two never compound. See assertDecks().
 const FACTIONS = {
-  HUMANS:{ name:'HUMANS', base:10, style:'even',
+  HUMANS:{ name:'HUMANS', base:10, style:'even', col:'#7f9fd0', tag:'H',
     blurb:'Balanced. No weakness to exploit, no edge to lean on.', deck:[
     {n:'LANCE',   s:8, g:3, m:2},{n:'SPEAR',   s:6, g:3, m:3},
     {n:'BLADE',   s:7, g:4, m:2},{n:'SHIELD',  s:2, g:7, m:3},
     {n:'WALL',    s:1, g:7, m:4},{n:'BULWARK', s:3, g:6, m:3},
     {n:'BANNER',  s:2, g:4, m:7},{n:'STANDARD',s:3, g:5, m:6},
   ]},
-  GOBLINS:{ name:'GOBLINS', base:8, style:'swarm',
+  GOBLINS:{ name:'GOBLINS', base:8, style:'swarm', col:'#8fc46a', tag:'G',
     blurb:'Vicious and brittle. Kill fast, die faster, low morale to defend.', deck:[
     {n:'CLAW', s:9, g:3, m:1},{n:'FANG', s:8, g:3, m:2},
     {n:'RUSH', s:7, g:3, m:2},{n:'SWARM',s:6, g:4, m:3},
     {n:'SPITE',s:5, g:3, m:4},{n:'HOWL', s:4, g:4, m:5},
     {n:'TOTEM',s:2, g:5, m:6},{n:'IDOL', s:1, g:4, m:7},
   ]},
-  DWARVES:{ name:'DWARVES', base:12, style:'hold',
+  DWARVES:{ name:'DWARVES', base:12, style:'hold', col:'#d9a05b', tag:'D',
     blurb:'Immovable. Hard to break, hard to break out of, high morale to beat.', deck:[
     {n:'GATE',   s:1, g:7, m:2},{n:'ANVIL', s:2, g:7, m:2},
     {n:'RAMPART',s:2, g:6, m:3},{n:'FORGE', s:3, g:6, m:3},
@@ -306,10 +308,75 @@ function encounterFor(rung, faction){
     title: boss ? BOSS_TITLES[faction] : TITLES[faction][rung % TITLES[faction].length],
   };
 }
-// two *different* factions, so the branch is always a real contrast
-function rollBranches(rung){
-  const k = shuffle(FACTION_KEYS.slice());
-  return [encounterFor(rung, k[0]), encounterFor(rung, k[1])];
+// The whole road is rolled once at run start so the map can show what's ahead.
+// Planning ("take the goblins now, a dwarf boss is waiting") is the point of a map.
+function generateLadder(){
+  const road = [];
+  for(let r=0; r<3; r++){
+    const k = shuffle(FACTION_KEYS.slice());          // two different factions = real contrast
+    road.push([encounterFor(r, k[0]), encounterFor(r, k[1])]);
+  }
+  road.push([encounterFor(3, shuffle(FACTION_KEYS.slice())[0])]);
+  return road;
+}
+
+// ── map geometry ──
+const MG = { w:300, h:352, rowY:[292,206,120,36], nodeX:[98,202], bossX:150, r:19 };
+const nodePos = (rung, i) => rung===3 ? [MG.bossX, MG.rowY[3]] : [MG.nodeX[i], MG.rowY[rung]];
+
+function renderMap(interactive){
+  let lines = '', nodes = '';
+
+  for(let r=0; r<3; r++){
+    const nextN = r===2 ? 1 : 2;
+    for(let i=0;i<2;i++) for(let j=0;j<nextN;j++){
+      const [x1,y1] = nodePos(r,i), [x2,y2] = nodePos(r+1,j);
+      const on = run.path[r]===i && (r===2 || run.path[r+1]===j);
+      lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+        stroke="${on?'#5f7f6c':'#222831'}" stroke-width="${on?2.5:1.4}"/>`;
+    }
+  }
+
+  for(let r=0; r<4; r++){
+    const row = run.ladder[r];
+    row.forEach((enc, i)=>{
+      const [x,y] = nodePos(r,i);
+      const f = FACTIONS[enc.faction];
+      const past = r < run.rung, here = r === run.rung;
+      const taken = run.path[r] === i;
+      const result = past && taken ? run.history[r] : null;
+
+      let fill='#12161c', stroke=f.col, op=1, num=f.col, ring='';
+      if(past && !taken){ op=.2; stroke='#2b323c'; num='#3c444f'; }
+      else if(result==='w'){ fill='#14231b'; stroke='#7ee0a8'; num='#7ee0a8'; }
+      else if(result==='l'){ fill='#251418'; stroke='#ff7a8a'; num='#ff7a8a'; }
+      else if(here){ ring = `<circle cx="${x}" cy="${y}" r="${MG.r+5}" fill="none" stroke="${f.col}" stroke-opacity=".35" stroke-width="1.5"/>`; }
+      else if(!past && !here){ op=.55; }
+
+      const clickable = here && interactive;
+      // a resolved result outranks the boss star — a beaten boss should read as beaten
+      const mark = result==='w' ? '✓' : result==='l' ? '✕' : enc.isBoss ? '★' : f.tag;
+
+      nodes += `<g opacity="${op}" ${clickable?`data-node="${i}" style="cursor:pointer"`:''}>
+        ${ring}
+        ${clickable?`<circle cx="${x}" cy="${y}" r="${MG.r+11}" fill="transparent"/>`:''}
+        <circle cx="${x}" cy="${y}" r="${MG.r}" fill="${fill}" stroke="${stroke}" stroke-width="${here?2.2:1.4}"/>
+        <text x="${x}" y="${y-3}" text-anchor="middle" font-size="12" fill="${num}"
+              font-family="ui-monospace,monospace" font-weight="700">${mark}</text>
+        <text x="${x}" y="${y+10}" text-anchor="middle" font-size="10" fill="${num}"
+              font-family="ui-monospace,monospace">${enc.base}</text>
+        <text x="${x}" y="${y+MG.r+13}" text-anchor="middle" font-size="8" fill="#6b7480"
+              font-family="ui-monospace,monospace" letter-spacing="1">${enc.isBoss?'BOSS':f.name}</text>
+      </g>`;
+    });
+  }
+
+  return `<svg class="map" viewBox="0 0 ${MG.w} ${MG.h}" xmlns="http://www.w3.org/2000/svg" role="img"
+      aria-label="Ladder map: three rungs then a boss">
+    <text x="${MG.bossX}" y="${MG.h-6}" text-anchor="middle" font-size="8"
+          fill="#4a515e" font-family="ui-monospace,monospace" letter-spacing="2">↑ THE ROAD UP ↑</text>
+    ${lines}${nodes}
+  </svg>`;
 }
 
 // ═══════════════════════════════════════════════ HELPERS
@@ -335,7 +402,8 @@ let playerFaction = 'HUMANS';
 let run = null;
 
 function startRun(){
-  run = { rung:0, wins:0, losses:0, lastLoss:false, done:false, history:[], claimed:null };
+  run = { rung:0, wins:0, losses:0, lastLoss:false, done:false, history:[], claimed:null,
+          ladder: generateLadder(), path:[] };
   G = { you: mkSide(FACTIONS[playerFaction]), them:null, wave:1, over:false };
   fightNo = 1;
   offerBranch();
@@ -646,10 +714,11 @@ function finish(){
   });
 
   $('#next').onclick = ()=>{
-    if(wiped){ showRunEnd(false, true); return; }        // only true run end
+    // advance past the fought rung either way, so the map marks it resolved
+    if(wiped){ run.rung++; showRunEnd(false, true); return; }   // only true run end
     if(bossWon){ showReward(run.current.faction); return; }
-    if(run.current.isBoss){ showRunEnd(false, false); return; }
     run.rung++; fightNo++;
+    if(run.current.isBoss){ showRunEnd(false, false); return; }
     offerBranch();
   };
 
@@ -686,43 +755,24 @@ function threatLine(f){
   return deckToll;
 }
 
-function rungStrip(){
-  const marks = [0,1,2,3].map(i=>{
-    const h = run.history[i];
-    const cls = h === 'w' ? 'done' : h === 'l' ? 'lost' : (i === run.rung ? 'now' : '');
-    return `<i class="${cls}">${i===3?'★':'●'}</i>`;
-  }).join('');
-  return `<div class="rungstrip"><span>${marks}</span><span>· ${run.wins}W ${run.losses}L</span></div>`;
-}
-
 function offerBranch(){
   hideOverlays();
-  if(run.rung >= 3){          // boss: no choice, just the wall
-    const enc = encounterFor(3, shuffle(FACTION_KEYS.slice())[0]);
-    const f = FACTIONS[enc.faction];
-    $('#branchBox').innerHTML = `
-      ${rungStrip()}
-      <h2>THE LAST FIGHT</h2>
-      <div class="sub2">No branch. No way around it.</div>
-      <div class="picks">
-        <button class="pk" data-i="0">
-          <div class="top"><span class="fn">${enc.title}</span>
-            <span class="lead">LEADER MORALE<b>${enc.base}</b></span></div>
-          <div class="bl">${f.blurb}</div>
-          ${shapeBars(f)}
-          <div class="cost">Warband: <b>${G.you.deck.length + G.you.fallen.length}</b> cards left.</div>
-        </button>
-      </div>`;
-    $('#branchBox').querySelector('.pk').onclick = ()=>beginFight(enc);
-    $('#branchPick').classList.remove('hide');
-    return;
-  }
+  const opts = run.ladder[run.rung];
+  const boss = run.rung >= 3;
 
-  const opts = rollBranches(run.rung);
+  const choose = i => {
+    run.path[run.rung] = i;
+    beginFight(opts[i]);
+  };
+
   $('#branchBox').innerHTML = `
-    ${rungStrip()}
-    <h2>CHOOSE YOUR ROAD</h2>
-    <div class="sub2">One of these can take the run. The other takes your warband.</div>
+    ${renderMap(true)}
+    <div class="rungstrip"><span>${run.wins}W ${run.losses}L</span>
+      <span>· warband ${G.you.deck.length + G.you.fallen.length}</span></div>
+    <h2>${boss ? 'THE LAST FIGHT' : 'CHOOSE YOUR ROAD'}</h2>
+    <div class="sub2">${boss
+      ? 'No branch. No way around it.'
+      : 'One of these can take the run. The other takes your warband.'}</div>
     <div class="picks">
       ${opts.map((enc,i)=>{
         const f = FACTIONS[enc.faction];
@@ -735,9 +785,9 @@ function offerBranch(){
         </button>`;
       }).join('')}
     </div>`;
-  $('#branchBox').querySelectorAll('.pk').forEach(b=>{
-    b.onclick = ()=>beginFight(opts[+b.dataset.i]);
-  });
+
+  $('#branchBox').querySelectorAll('.pk').forEach(b=> b.onclick = ()=>choose(+b.dataset.i));
+  $('#branchBox').querySelectorAll('[data-node]').forEach(g=> g.onclick = ()=>choose(+g.dataset.node));
   $('#branchPick').classList.remove('hide');
 }
 
@@ -748,7 +798,7 @@ function showReward(bossFaction){
   hideOverlays();
   const pool = shuffle(FACTIONS[bossFaction].deck.slice()).slice(0,2);
   $('#branchBox').innerHTML = `
-    ${rungStrip()}
+    ${renderMap(false)}
     <h2>CLAIM THEIR BANNER</h2>
     <div class="sub2">You broke ${FACTIONS[bossFaction].name}. Take one of their cards as a trophy.</div>
     <div class="picks">
@@ -774,6 +824,7 @@ function showReward(bossFaction){
       // survivor count is taken before the trophy joins, or it inflates the tally
       run.claimed = { card:c, from:bossFaction, survivors: G.you.deck.length + G.you.fallen.length };
       G.you.deck.push({...c, id:++uid});
+      run.rung++;                       // marks the boss node conquered on the map
       showRunEnd(true, false);
     };
   });
@@ -793,7 +844,7 @@ function showRunEnd(bossWon, wiped){
       ? `Only <b>${left}</b> left — too few to field three waves. The march stops here.`
       : `You reached the last fight and could not break it.`;
   $('#runEndBox').innerHTML = `
-    ${rungStrip()}
+    ${renderMap(false)}
     <h2>${title}</h2>
     <div class="runstat">${body}<br>
       <b>${run.wins}</b> won · <b>${run.losses}</b> lost · playing <b>${FACTIONS[playerFaction].name}</b></div>
