@@ -299,10 +299,10 @@ const BOSS_TITLES = { HUMANS:'THE LORD MARSHAL', GOBLINS:'THE CARRION KING', DWA
 
 function encounterFor(rung, faction){
   const f = FACTIONS[faction], boss = rung >= 3;
+  const bonus = boss ? BOSS_BONUS : RUNG_BONUS[rung];
   return {
-    faction, isBoss: boss,
-    bonus: boss ? BOSS_BONUS : RUNG_BONUS[rung],
-    base:  f.base + (boss ? BOSS_BONUS : RUNG_BONUS[rung]),
+    faction, isBoss: boss, bonus,
+    base:  f.base + bonus,
     title: boss ? BOSS_TITLES[faction] : TITLES[faction][rung % TITLES[faction].length],
   };
 }
@@ -335,7 +335,7 @@ let playerFaction = 'HUMANS';
 let run = null;
 
 function startRun(){
-  run = { rung:0, wins:0, losses:0, lastLoss:false, done:false, history:[] };
+  run = { rung:0, wins:0, losses:0, lastLoss:false, done:false, history:[], claimed:null };
   G = { you: mkSide(FACTIONS[playerFaction]), them:null, wave:1, over:false };
   fightNo = 1;
   offerBranch();
@@ -625,8 +625,8 @@ function finish(){
   run.done = wiped || bossWon || (run.rung >= 3);
 
   let btn;
-  if(bossWon)      btn = `<button class="btn p" id="next">CLAIM THE FIELD →</button>`;
-  else if(wiped)   btn = `<button class="btn p" id="next">YOUR WARBAND IS SPENT →</button>`;
+  if(wiped)        btn = `<button class="btn p" id="next">YOUR WARBAND IS SPENT →</button>`;
+  else if(bossWon) btn = `<button class="btn p" id="next">CLAIM THEIR BANNER →</button>`;
   else if(run.current.isBoss) btn = `<button class="btn p" id="next">THE RUN ENDS →</button>`;
   else             btn = `<button class="btn p" id="next">${won?'PRESS ON':'FALL BACK'} →</button>`;
 
@@ -646,7 +646,9 @@ function finish(){
   });
 
   $('#next').onclick = ()=>{
-    if(bossWon || wiped || run.current.isBoss){ showRunEnd(bossWon, wiped); return; }
+    if(wiped){ showRunEnd(false, true); return; }        // only true run end
+    if(bossWon){ showReward(run.current.faction); return; }
+    if(run.current.isBoss){ showRunEnd(false, false); return; }
     run.rung++; fightNo++;
     offerBranch();
   };
@@ -739,15 +741,57 @@ function offerBranch(){
   $('#branchPick').classList.remove('hide');
 }
 
+// Beating the boss is the only thing in the run that gives instead of takes.
+// The trophy is deliberately a dead reward — the run ends here. It exists to show
+// what the loop would hand you, not to feed a second lap.
+function showReward(bossFaction){
+  hideOverlays();
+  const pool = shuffle(FACTIONS[bossFaction].deck.slice()).slice(0,2);
+  $('#branchBox').innerHTML = `
+    ${rungStrip()}
+    <h2>CLAIM THEIR BANNER</h2>
+    <div class="sub2">You broke ${FACTIONS[bossFaction].name}. Take one of their cards as a trophy.</div>
+    <div class="picks">
+      ${pool.map((c,i)=>`<button class="pk" data-i="${i}">
+        <div class="top"><span class="fn">${c.n}</span>
+          <span class="lead">${FACTIONS[bossFaction].name}</span></div>
+        <div class="bars">
+          <div class="bar"><span>▲ STRIKE</span>
+            <span class="track"><span class="fill" style="width:${c.s/9*100}%;background:var(--s)"></span></span>
+            <span class="num">${c.s}</span></div>
+          <div class="bar"><span>⬢ GUARD&nbsp;</span>
+            <span class="track"><span class="fill" style="width:${c.g/7*100}%;background:var(--g)"></span></span>
+            <span class="num">${c.g}</span></div>
+          <div class="bar"><span>✦ MORALE</span>
+            <span class="track"><span class="fill" style="width:${c.m/7*100}%;background:var(--m)"></span></span>
+            <span class="num">${c.m}</span></div>
+        </div>
+      </button>`).join('')}
+    </div>`;
+  $('#branchBox').querySelectorAll('.pk').forEach(b=>{
+    b.onclick = ()=>{
+      const c = pool[+b.dataset.i];
+      // survivor count is taken before the trophy joins, or it inflates the tally
+      run.claimed = { card:c, from:bossFaction, survivors: G.you.deck.length + G.you.fallen.length };
+      G.you.deck.push({...c, id:++uid});
+      showRunEnd(true, false);
+    };
+  });
+  $('#branchPick').classList.remove('hide');
+}
+
 function showRunEnd(bossWon, wiped){
   hideOverlays();
   const left = G.you.deck.length + G.you.fallen.length;
-  const title = bossWon ? 'THE FIELD IS YOURS' : wiped ? 'YOUR WARBAND IS SPENT' : 'THE RUN ENDS';
+  const c = run.claimed;
+  const title = bossWon ? 'THE FIELD IS YOURS'
+              : wiped   ? 'YOUR WARBAND IS SPENT'
+                        : 'THE LINE HOLDS';
   const body  = bossWon
-      ? `You broke the last line with <b>${left}</b> cards still standing.`
+      ? `You broke the last line with <b>${c.survivors}</b> cards still standing,<br>and took <b>${c.card.n}</b> from the ${FACTIONS[c.from].name} as a trophy.`
       : wiped
-      ? `Too few left to field three waves. The march stops here.`
-      : `You reached the end of the road but could not break it.`;
+      ? `Only <b>${left}</b> left — too few to field three waves. The march stops here.`
+      : `You reached the last fight and could not break it.`;
   $('#runEndBox').innerHTML = `
     ${rungStrip()}
     <h2>${title}</h2>
