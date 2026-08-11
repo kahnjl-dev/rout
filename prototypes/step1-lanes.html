@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ROUT — Lane Toy</title>
+<style>
+  :root{
+    --bg:#0d0f13; --panel:#161a20; --line:#272d37; --text:#e7eaf0; --dim:#89919f; --faint:#525a68;
+    --s:#ff6b4a; --g:#4aa3ff; --m:#ffc44a;
+    --you:#7ee0a8; --them:#ff7a8a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    background:var(--bg);color:var(--text);min-height:100vh;
+    font:500 14px/1.35 ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    display:flex;justify-content:center;padding:10px;
+  }
+  #wrap{width:100%;max-width:560px}
+  .shaking{animation:shk .25s ease-out}
+  @keyframes shk{0%,100%{transform:translate(0,0)}25%{transform:translate(-5px,3px)}50%{transform:translate(5px,-3px)}75%{transform:translate(-3px,-2px)}}
+
+  header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  h1{font-size:12px;letter-spacing:.24em;color:var(--dim);font-weight:600}
+  .meta{font-size:11px;color:var(--faint)}
+
+  /* leader morale bars */
+  .leader{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:7px 11px;font-size:11px;letter-spacing:.1em;
+  }
+  .leader .who{color:var(--dim)}
+  .leader.them .who b{color:var(--them)}
+  .leader.you  .who b{color:var(--you)}
+  .leader .val{font-size:17px;font-variant-numeric:tabular-nums}
+  .leader.them .val{color:var(--them)} .leader.you .val{color:var(--you)}
+
+  /* board */
+  .board{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin:7px 0}
+  .lane{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:6px;display:flex;flex-direction:column;gap:5px;min-height:246px;
+    transition:border-color .15s,background .15s;
+  }
+  .lane.pick{border-color:var(--you);background:#18211c;cursor:pointer}
+  .lane.pick:active{transform:scale(.99)}
+  .stack{display:flex;flex-direction:column;gap:4px;min-height:96px}
+  .stack.them{justify-content:flex-end}
+  .bounty{
+    text-align:center;font-size:10px;letter-spacing:.12em;color:var(--m);
+    border-top:1px dashed #2f3742;border-bottom:1px dashed #2f3742;padding:4px 0;
+  }
+  .bounty b{font-size:13px}
+  .bounty .held{display:block;font-size:9px;color:var(--faint);letter-spacing:.08em;margin-top:1px}
+  .ltot{font-size:9.5px;color:var(--faint);text-align:center;letter-spacing:.06em;min-height:12px}
+
+  /* cards */
+  .c{
+    border:1px solid var(--line);border-radius:6px;background:#0f1319;
+    padding:5px 5px 4px;position:relative;
+  }
+  .c .nm{font-size:8.5px;letter-spacing:.1em;color:var(--faint);margin-bottom:3px;text-align:center}
+  .c .st{display:flex;justify-content:space-between;gap:2px;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .c .st span{display:flex;align-items:center;gap:1px}
+  .c .sv{color:var(--s)} .c .gv{color:var(--g)} .c .mv{color:var(--m)}
+  .c.front{border-color:#3d4753;box-shadow:0 0 0 1px #1d232c inset}
+  .c.them{border-left:2px solid var(--them)}
+  .c.you{border-left:2px solid var(--you)}
+  .c.routed{opacity:.42;transform:rotate(-5deg);border-color:#4a3c1c;background:#12100a}
+  .c.gone{opacity:.3;filter:grayscale(.7);border-color:#4a251c;background:#130c0a}
+  .c.gone .nm,.c.gone .st{text-decoration:line-through;text-decoration-thickness:1px}
+  .c .fate{
+    display:block;text-align:center;font-size:7.5px;letter-spacing:.09em;
+    font-weight:700;margin-top:3px;padding-top:2px;border-top:1px solid currentColor;
+  }
+  .c.routed .fate{color:var(--m)}
+  .c.gone .fate{color:var(--s)}
+  .c.newly{animation:pop .35s ease-out}
+  @keyframes pop{0%{transform:scale(.75);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+  .c .tagx{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:9px;letter-spacing:.14em;font-weight:700;border-radius:6px;
+    animation:fade 1.4s ease-out forwards;pointer-events:none;
+  }
+  .tagx.r{background:rgba(255,196,74,.16);color:var(--m);border:1px solid var(--m)}
+  .tagx.e{background:rgba(255,107,74,.2);color:var(--s);border:1px solid var(--s)}
+  @keyframes fade{0%{opacity:0;transform:scale(.8)}20%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0}}
+
+  .facedown{
+    background:repeating-linear-gradient(45deg,#161a20,#161a20 4px,#1c212a 4px,#1c212a 8px);
+    height:44px;display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:var(--faint);letter-spacing:.14em;
+  }
+
+  /* hand */
+  .handwrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:7px}
+  .hlab{font-size:10px;letter-spacing:.16em;color:var(--dim);margin-bottom:7px;display:flex;justify-content:space-between}
+  .hand{display:flex;gap:6px}
+  .hc{
+    flex:1;border:1px solid var(--line);border-radius:7px;background:#0f1319;
+    padding:7px 4px 6px;cursor:pointer;transition:transform .12s,border-color .12s,background .12s;
+  }
+  .hc:active{transform:scale(.95)}
+  .hc.sel{border-color:var(--you);background:#16211b;transform:translateY(-4px)}
+  .hc .nm{font-size:8.5px;letter-spacing:.08em;color:var(--faint);text-align:center;margin-bottom:4px}
+  .hc .row{display:flex;justify-content:center;gap:6px;font-size:12px;font-variant-numeric:tabular-nums}
+
+  .msg{margin-top:7px;font-size:11.5px;color:var(--dim);min-height:32px;background:var(--panel);
+       border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .msg b{color:var(--text)}
+
+  /* end panel */
+  .end{margin-top:7px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px}
+  .end h2{font-size:12px;letter-spacing:.18em;margin-bottom:9px;color:var(--dim)}
+  .tbl{width:100%;font-size:12px;font-variant-numeric:tabular-nums;border-collapse:collapse}
+  .tbl td{padding:3px 0}
+  .tbl td:last-child{text-align:right}
+  .tbl tr.tot td{border-top:1px solid var(--line);padding-top:6px;font-size:15px}
+  .tbl .yv{color:var(--you)} .tbl .tv{color:var(--them)}
+  .verdict{margin-top:9px;font-size:14px;letter-spacing:.1em;text-align:center;padding:7px;border-radius:6px}
+  .verdict.w{background:rgba(126,224,168,.12);color:var(--you)}
+  .verdict.l{background:rgba(255,122,138,.12);color:var(--them)}
+  .verdict.d{background:#1b2029;color:var(--dim)}
+
+  .ctrls{display:flex;gap:7px;margin-top:7px}
+  button.btn{
+    flex:1;background:#0f1319;border:1px solid var(--line);color:var(--text);
+    border-radius:7px;padding:10px;font-family:inherit;font-size:11px;letter-spacing:.12em;cursor:pointer;
+  }
+  button.btn:active{transform:scale(.98)}
+  button.btn.p{border-color:var(--you);color:var(--you)}
+  select{
+    background:#0f1319;border:1px solid var(--line);color:var(--text);border-radius:7px;
+    padding:10px;font-family:inherit;font-size:11px;letter-spacing:.1em;flex:1;
+  }
+  .hint{margin-top:8px;font-size:10.5px;color:var(--faint);line-height:1.55}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+  <header>
+    <h1>R O U T</h1>
+    <span class="meta" id="meta">fight 1 · wave 1/3</span>
+  </header>
+
+  <div class="leader them">
+    <span class="who">LEADER <b id="eName">—</b></span>
+    <span class="val" id="eBase">0</span>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="leader you">
+    <span class="who">LEADER <b>YOU</b></span>
+    <span class="val" id="pBase">0</span>
+  </div>
+
+  <div class="handwrap">
+    <div class="hlab"><span>HAND</span><span id="deckInfo"></span></div>
+    <div class="hand" id="hand"></div>
+  </div>
+
+  <div class="msg" id="msg"></div>
+  <div id="endSlot"></div>
+
+  <div class="ctrls">
+    <select id="faction">
+      <option value="GOBLINS">GOBLINS · fast, fragile</option>
+      <option value="DWARVES">DWARVES · slow, armoured</option>
+    </select>
+    <button class="btn" id="restart">NEW RUN</button>
+  </div>
+
+  <div class="hint">
+    Tap a card, then tap a lane. One card per wave, three waves. New cards go to the <b>front</b> of a lane.
+    Strike ≥ Guard routs (returns next fight). Strike ≥ 2×Guard eliminates (gone from your deck).
+    Most morale at the end wins: leader + surviving cards on the field + lane bounties.
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════ TUNING
+const LANE_BOUNTY = [2, 3, 2];
+const WAVES = 3;
+const HAND_SIZE = 5;
+
+const PLAYER = {
+  name:'YOU', base:10,
+  deck:[
+    {n:'LANCE',   s:8, g:3, m:2},
+    {n:'SPEAR',   s:6, g:3, m:3},
+    {n:'BLADE',   s:7, g:4, m:2},
+    {n:'SHIELD',  s:2, g:7, m:3},
+    {n:'WALL',    s:1, g:7, m:4},
+    {n:'BULWARK', s:3, g:6, m:3},
+    {n:'BANNER',  s:2, g:4, m:7},
+    {n:'STANDARD',s:3, g:5, m:6},
+  ]
+};
+
+const FACTIONS = {
+  GOBLINS:{ name:'GOBLINS', base:8, style:'swarm', deck:[
+    {n:'CLAW', s:9, g:3, m:1},{n:'FANG', s:8, g:3, m:2},
+    {n:'RUSH', s:7, g:3, m:2},{n:'SWARM',s:6, g:4, m:3},
+    {n:'SPITE',s:5, g:3, m:4},{n:'HOWL', s:4, g:4, m:5},
+    {n:'TOTEM',s:2, g:5, m:6},{n:'IDOL', s:1, g:4, m:7},
+  ]},
+  DWARVES:{ name:'DWARVES', base:12, style:'hold', deck:[
+    {n:'GATE',   s:1, g:7, m:2},{n:'ANVIL', s:2, g:7, m:2},
+    {n:'RAMPART',s:2, g:6, m:3},{n:'FORGE', s:3, g:6, m:3},
+    {n:'HAMMER', s:5, g:5, m:3},{n:'AXE',   s:4, g:5, m:4},
+    {n:'RUNE',   s:2, g:4, m:6},{n:'THRONE',s:1, g:4, m:7},
+  ]},
+};
+
+// ═══════════════════════════════════════════════ HELPERS
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(p=>p[1]);
+let uid = 0;
+
+function mkSide(src){
+  return {
+    name: src.name, base: src.base, style: src.style || 'even',
+    deck: src.deck.map(c=>({...c, id:++uid})),
+    hand: [],
+    lanes: [[],[],[]],   // index 0 === FRONT
+    fallen: [],          // routed this fight
+  };
+}
+
+// ═══════════════════════════════════════════════ STATE
+let G, sel = null, busy = false, fightNo = 1;
+
+function newRun(){
+  fightNo = 1;
+  G = { you: mkSide(PLAYER), them: mkSide(FACTIONS[$('#faction').value]) };
+  newFight();
+}
+function newFight(){
+  for(const s of [G.you, G.them]){
+    s.lanes = [[],[],[]];
+    // routed cards recover and come back
+    s.fallen.forEach(c=>{ delete c.dead; delete c._tag; });
+    s.deck = s.deck.concat(s.fallen); s.fallen = [];
+    s.deck = shuffle(s.deck);
+    s.hand = s.deck.slice(0, HAND_SIZE);
+  }
+  G.wave = 1; G.over = false; sel = null; busy = false;
+  $('#endSlot').innerHTML = '';
+  say(`Fight ${fightNo}. Three waves. Pick a card, pick a lane.`);
+  render();
+}
+
+// ═══════════════════════════════════════════════ RENDER
+function cardHTML(c, who, isFront){
+  // dead cards stay on the board but are inert: no strike, guard, morale, or blocking
+  const dead = c.dead ? (c.dead==='eliminated' ? 'gone' : 'routed') : '';
+  const cls = ['c', who, (isFront && !c.dead)?'front':'', c.tag?'newly':'', dead].join(' ');
+  const fate = c.dead ? `<span class="fate">${c.dead==='eliminated'?'ELIMINATED':'ROUTED'}</span>` : '';
+  return `<div class="${cls}" data-id="${c.id}">
+    <div class="nm">${c.n}</div>
+    <div class="st">
+      <span class="sv">▲${c.s}</span><span class="gv">⬢${c.g}</span><span class="mv">✦${c.m}</span>
+    </div>${fate}
+  </div>`;
+}
+
+// only living cards count for anything
+const living  = arr => arr.filter(c=>!c.dead);
+const frontOf = (side,i) => living(side.lanes[i])[0] || null;
+function laneMorale(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.m,0); }
+function laneStrike(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.s,0); }
+
+function render(){
+  $('#meta').textContent = `fight ${fightNo} · wave ${Math.min(G.wave,WAVES)}/${WAVES}`;
+  $('#eName').textContent = G.them.name;
+  $('#eBase').textContent = G.them.base;
+  $('#pBase').textContent = G.you.base;
+  $('#deckInfo').textContent = `deck ${G.you.deck.length}`;
+
+  $('#board').innerHTML = LANE_BOUNTY.map((b,i)=>{
+    const eFrontId = (frontOf(G.them,i)||{}).id, pFrontId = (frontOf(G.you,i)||{}).id;
+    const eStack = G.them.lanes[i].map(c=>cardHTML(c,'them',c.id===eFrontId)).join('');
+    const pStack = G.you.lanes[i].map(c=>cardHTML(c,'you',c.id===pFrontId)).join('');
+    const pm = laneMorale(G.you,i), em = laneMorale(G.them,i);
+    const held = pm>em ? '<span class="held" style="color:var(--you)">YOU HOLD</span>'
+               : em>pm ? '<span class="held" style="color:var(--them)">THEY HOLD</span>'
+               : '<span class="held">CONTESTED</span>';
+    const ps = laneStrike(G.you,i), es = laneStrike(G.them,i);
+    const eFront = frontOf(G.them,i), pFront = frontOf(G.you,i);
+    return `<div class="lane ${sel!==null&&!busy&&!G.over?'pick':''}" data-lane="${i}">
+      <div class="ltot">${es?`▲${es} vs ⬢${pFront?pFront.g:'—'}`:'&nbsp;'}</div>
+      <div class="stack them">${eStack}</div>
+      <div class="bounty">BOUNTY <b>${b}</b>${held}</div>
+      <div class="stack you">${pStack}</div>
+      <div class="ltot">${ps?`▲${ps} vs ⬢${eFront?eFront.g:'—'}`:'&nbsp;'}</div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.lane').forEach(el=>{
+    el.onclick = ()=>{ if(sel!==null && !busy && !G.over) place(+el.dataset.lane); };
+  });
+
+  $('#hand').innerHTML = G.you.hand.map((c,i)=>`
+    <div class="hc ${sel===i?'sel':''}" data-i="${i}">
+      <div class="nm">${c.n}</div>
+      <div class="row"><span class="sv" style="color:var(--s)">▲${c.s}</span></div>
+      <div class="row"><span style="color:var(--g)">⬢${c.g}</span></div>
+      <div class="row"><span style="color:var(--m)">✦${c.m}</span></div>
+    </div>`).join('');
+  document.querySelectorAll('.hc').forEach(el=>{
+    el.onclick = ()=>{ if(busy||G.over) return; sel = (sel===+el.dataset.i)?null:+el.dataset.i; render(); };
+  });
+}
+function say(t){ $('#msg').innerHTML = t; }
+function shake(){ const w=$('#wrap'); w.classList.remove('shaking'); void w.offsetWidth; w.classList.add('shaking'); }
+
+// ═══════════════════════════════════════════════ ENEMY AI
+function enemyChoose(){
+  const s = G.them;
+  let best = null;
+  s.hand.forEach((card, hi)=>{
+    for(let L=0; L<3; L++){
+      let v = 0;
+      const myStrike = laneStrike(s,L) + card.s;
+      const foeFront = G.you.lanes[L][0];
+      // reward breaking their front card
+      if(foeFront){
+        if(myStrike >= foeFront.g*2) v += 8 + foeFront.m*1.5;
+        else if(myStrike >= foeFront.g) v += 4 + foeFront.m;
+        else v += myStrike * 0.25;
+      }
+      // reward claiming bounty
+      const em = laneMorale(s,L)+card.m, pm = laneMorale(G.you,L);
+      if(em > pm) v += LANE_BOUNTY[L] * 1.4;
+      // survivability of the card we're placing (it becomes front)
+      const threat = laneStrike(G.you,L);
+      if(threat >= card.g*2) v -= 5 + card.m;
+      else if(threat >= card.g) v -= 2 + card.m*0.5;
+      // faction posture
+      if(s.style==='swarm') v += laneStrike(s,L) * 0.5;        // pile in
+      if(s.style==='hold')  v += (s.lanes[L].length===0 ? 2.5 : 0); // spread out
+      v += Math.random()*2.2;
+      if(!best || v > best.v) best = {v, hi, L, card};
+    }
+  });
+  return best;
+}
+
+// ═══════════════════════════════════════════════ RESOLUTION
+// returns [{card, outcome}] applied front-to-back
+function computeDamage(stack, strike){
+  let rem = strike; const out = [];
+  for(const c of stack){
+    if(rem >= c.g*2){ out.push({c, o:'eliminated'}); rem -= c.g; }
+    else if(rem >= c.g){ out.push({c, o:'routed'}); rem -= c.g; }
+    else break;                                  // can't reach past an unbroken card
+  }
+  return out;
+}
+
+async function place(lane){
+  if(busy || sel===null) return;
+  busy = true;
+  const myCard = G.you.hand.splice(sel,1)[0];
+  sel = null;
+
+  const pick = enemyChoose();
+  const foeCard = G.them.hand.splice(pick.hi,1)[0];
+
+  // face down beat
+  G.you.lanes[lane].unshift(myCard);          // FRONT
+  G.them.lanes[pick.L].unshift(foeCard);
+  myCard.tag = foeCard.tag = true;
+  say(`Wave ${G.wave} — both committed.`);
+  render();
+  await wait(450);
+  myCard.tag = foeCard.tag = false;
+
+  // resolve every lane simultaneously
+  const plan = [];
+  for(let L=0; L<3; L++){
+    const pS = laneStrike(G.you,L), eS = laneStrike(G.them,L);
+    plan.push({ L, toThem: computeDamage(living(G.them.lanes[L]), pS), toYou: computeDamage(living(G.you.lanes[L]), eS) });
+  }
+
+  const lines = [];
+  let anyElim = false, anyHit = false;
+  for(const p of plan){
+    for(const {c,o} of p.toThem){ markTag(c,o); if(o==='eliminated') anyElim=true; anyHit=true; }
+    for(const {c,o} of p.toYou){  markTag(c,o); if(o==='eliminated') anyElim=true; anyHit=true; }
+    const kills = p.toThem.length, losses = p.toYou.length;
+    if(kills||losses) lines.push(`Lane ${p.L+1}: you break <b>${kills}</b>, they break <b>${losses}</b>`);
+  }
+  render();
+  paintTags(plan);
+  if(anyElim) shake();
+  say(lines.length ? lines.join(' &nbsp;·&nbsp; ') : `Wave ${G.wave} — nothing breaks.`);
+  await wait(anyHit ? 1150 : 550);
+
+  // apply outcomes
+  for(const p of plan){
+    applyOutcomes(G.them, p.L, p.toThem);
+    applyOutcomes(G.you,  p.L, p.toYou);
+  }
+
+  G.wave++;
+  render();
+
+  if(G.wave > WAVES){ await wait(350); finish(); }
+  else busy = false;
+}
+
+function markTag(c,o){ c._tag = o; }
+function paintTags(){
+  document.querySelectorAll('.c').forEach(el=>{
+    const id = +el.dataset.id;
+    const c = findCard(id);
+    if(c && c._tag){
+      const d = document.createElement('div');
+      d.className = 'tagx ' + (c._tag==='eliminated'?'e':'r');
+      d.textContent = c._tag==='eliminated' ? 'ELIMINATED' : 'ROUTED';
+      el.appendChild(d);
+      el.classList.add(c._tag==='eliminated'?'gone':'routed');
+    }
+  });
+}
+function findCard(id){
+  for(const s of [G.you,G.them])
+    for(const L of s.lanes){ const f = L.find(c=>c.id===id); if(f) return f; }
+  return null;
+}
+function applyOutcomes(side, L, outs){
+  for(const {c,o} of outs){
+    c.dead = o;                                  // stays on the board, inert
+    side.deck = side.deck.filter(x=>x.id!==c.id);
+    delete c._tag;
+    if(o==='routed') side.fallen.push(c);        // returns next fight
+    // eliminated: gone for good
+  }
+}
+
+// ═══════════════════════════════════════════════ SCORING
+function finish(){
+  G.over = true; busy = true;
+  const rows = [];
+  let yTot = G.you.base, tTot = G.them.base;
+  rows.push(['Leader morale', G.you.base, G.them.base]);
+
+  let yField=0, tField=0;
+  for(let L=0;L<3;L++){ yField += laneMorale(G.you,L); tField += laneMorale(G.them,L); }
+  yTot += yField; tTot += tField;
+  rows.push(['Surviving cards', yField, tField]);
+
+  let yB=0, tB=0, detail=[];
+  for(let L=0;L<3;L++){
+    const pm = laneMorale(G.you,L), em = laneMorale(G.them,L);
+    if(pm>em){ yB += LANE_BOUNTY[L]; detail.push(`L${L+1}→you`); }
+    else if(em>pm){ tB += LANE_BOUNTY[L]; detail.push(`L${L+1}→them`); }
+    else detail.push(`L${L+1}→tie`);
+  }
+  yTot += yB; tTot += tB;
+  rows.push([`Lane bounties (${detail.join(', ')})`, yB, tB]);
+
+  const win = yTot>tTot ? 'w' : yTot<tTot ? 'l' : 'd';
+  const verdict = win==='w' ? 'YOU HOLD THE FIELD' : win==='l' ? 'YOU ARE ROUTED' : 'STALEMATE';
+
+  $('#endSlot').innerHTML = `<div class="end">
+    <h2>FIGHT ${fightNo} — FINAL MORALE</h2>
+    <table class="tbl">
+      <tr><td style="color:var(--faint)"></td><td class="yv">YOU</td><td class="tv">${G.them.name}</td></tr>
+      ${rows.map(r=>`<tr><td style="color:var(--dim)">${r[0]}</td><td class="yv">${r[1]}</td><td class="tv">${r[2]}</td></tr>`).join('')}
+      <tr class="tot"><td></td><td class="yv">${yTot}</td><td class="tv">${tTot}</td></tr>
+    </table>
+    <div class="verdict ${win}">${verdict}</div>
+    <div class="ctrls"><button class="btn p" id="next">NEXT FIGHT →</button></div>
+  </div>`;
+  // fix table column alignment (3 cols)
+  document.querySelectorAll('.tbl tr').forEach(tr=>{
+    if(tr.children.length===3) tr.children[1].style.textAlign='right';
+  });
+  $('#next').onclick = ()=>{ fightNo++; newFight(); };
+  say(`Deck now <b>${G.you.deck.length + G.you.fallen.length}</b> cards. Eliminated cards are gone for the run.`);
+  render();
+}
+
+// ═══════════════════════════════════════════════ BOOT
+$('#restart').onclick = newRun;
+$('#faction').onchange = newRun;
+newRun();
+</script>
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ROUT — Step 0 Toy</title>
+<style>
+  :root{
+    --bg:#0e1013;
+    --panel:#171a1f;
+    --line:#2a2f38;
+    --text:#e6e9ef;
+    --dim:#8b93a1;
+    --strike:#ff6b4a;
+    --guard:#4aa3ff;
+    --rally:#ffc44a;
+    --you:#7ee0a8;
+    --them:#ff7a8a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--text);
+    font:500 15px/1.4 ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    display:flex;align-items:center;justify-content:center;
+    padding:12px;overflow-x:hidden;
+  }
+  #shake{width:100%;max-width:520px}
+  .shaking{animation:shake .22s ease-out}
+  @keyframes shake{
+    0%{transform:translate(0,0)}25%{transform:translate(-5px,3px)}
+    50%{transform:translate(4px,-3px)}75%{transform:translate(-3px,-2px)}
+    100%{transform:translate(0,0)}
+  }
+
+  header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  h1{font-size:13px;letter-spacing:.22em;color:var(--dim);font-weight:600}
+  .sub{font-size:11px;color:#5a6270}
+
+  .side{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .side + .side{margin-top:0}
+  .label{font-size:10px;letter-spacing:.18em;color:var(--dim);margin-bottom:9px;display:flex;justify-content:space-between;align-items:center}
+  .them .label b{color:var(--them);font-weight:600}
+  .you .label b{color:var(--you);font-weight:600}
+
+  .units{display:flex;gap:9px}
+  .unit{
+    flex:1;background:#101317;border:1px solid var(--line);border-radius:8px;
+    padding:9px 10px;position:relative;transition:opacity .3s,filter .3s;
+  }
+  .unit.dead{opacity:.25;filter:grayscale(1)}
+  .unit .uname{font-size:10px;color:var(--dim);letter-spacing:.1em;margin-bottom:6px}
+  .hpbar{height:7px;background:#000;border-radius:4px;overflow:hidden;margin-bottom:5px}
+  .hpfill{height:100%;border-radius:4px;transition:width .35s cubic-bezier(.2,.8,.3,1)}
+  .them .hpfill{background:var(--them)}
+  .you .hpfill{background:var(--you)}
+  .hpnum{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .unit.hit{animation:hit .3s ease-out}
+  @keyframes hit{0%{transform:scale(1)}30%{transform:scale(1.07)}100%{transform:scale(1)}}
+
+  .float{
+    position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+    font-size:20px;font-weight:700;pointer-events:none;
+    animation:rise .9s ease-out forwards;text-shadow:0 2px 6px #000;
+  }
+  .float.dmg{color:var(--strike)}
+  .float.heal{color:var(--rally)}
+  @keyframes rise{
+    0%{opacity:0;transform:translate(-50%,6px) scale(.7)}
+    18%{opacity:1;transform:translate(-50%,-8px) scale(1.15)}
+    100%{opacity:0;transform:translate(-50%,-34px) scale(1)}
+  }
+
+  /* ---- arena / cards ---- */
+  .arena{
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;
+    margin:12px 0;min-height:132px;
+  }
+  .slot{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .tell{
+    font-size:10px;letter-spacing:.14em;color:var(--dim);
+    display:flex;align-items:center;gap:6px;height:17px;
+  }
+  .tell .g{font-size:15px}
+
+  .card{
+    width:96px;height:112px;perspective:700px;
+  }
+  .cardInner{
+    position:relative;width:100%;height:100%;
+    transition:transform .42s cubic-bezier(.3,.9,.3,1);transform-style:preserve-3d;
+  }
+  .card.flipped .cardInner{transform:rotateY(180deg)}
+  .face{
+    position:absolute;inset:0;backface-visibility:hidden;
+    border-radius:9px;border:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  }
+  .back{
+    background:repeating-linear-gradient(45deg,#171a1f,#171a1f 5px,#1d2128 5px,#1d2128 10px);
+  }
+  .front{transform:rotateY(180deg);background:#101317}
+  .front .g{font-size:34px;line-height:1}
+  .front .n{font-size:10px;letter-spacing:.16em;color:var(--dim)}
+  .card.empty{opacity:.18}
+  .vs{font-size:10px;color:#4a515e;letter-spacing:.1em}
+
+  /* ---- hand ---- */
+  .hand{display:flex;gap:9px;margin-top:11px}
+  .play{
+    flex:1;background:#101317;border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:13px 6px;cursor:pointer;font-family:inherit;
+    display:flex;flex-direction:column;align-items:center;gap:5px;
+    transition:transform .12s,border-color .12s,background .12s;
+    min-height:74px;
+  }
+  .play .g{font-size:25px;line-height:1}
+  .play .n{font-size:10px;letter-spacing:.13em;color:var(--dim)}
+  .play:active{transform:scale(.95)}
+  .play:disabled{opacity:.3;cursor:default}
+  .play[data-c="STRIKE"]{border-color:#40251d}
+  .play[data-c="GUARD"]{border-color:#1d2f40}
+  .play[data-c="RALLY"]{border-color:#403619}
+  .play[data-c="STRIKE"] .g{color:var(--strike)}
+  .play[data-c="GUARD"] .g{color:var(--guard)}
+  .play[data-c="RALLY"] .g{color:var(--rally)}
+  .play:not(:disabled):hover{background:#161a20}
+
+  /* ---- log + tuning ---- */
+  .log{
+    margin-top:11px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;min-height:64px;font-size:11.5px;color:var(--dim);
+  }
+  .log div{padding:1.5px 0}
+  .log .now{color:var(--text)}
+  .tune{
+    margin-top:11px;display:flex;align-items:center;gap:10px;
+    font-size:11px;color:var(--dim);
+  }
+  .tune input{flex:1;accent-color:var(--guard)}
+  .tune b{color:var(--text);font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+  .hint{margin-top:9px;font-size:10.5px;color:#5a6270;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="shake">
+
+  <header>
+    <h1>R O U T</h1>
+    <span class="sub">step 0 toy</span>
+  </header>
+
+  <div class="side them">
+    <div class="label"><b>THEM</b><span id="tellLabel">reading intent…</span></div>
+    <div class="units" id="eUnits"></div>
+  </div>
+
+  <div class="arena">
+    <div class="slot">
+      <div class="tell" id="tell"><span class="g">?</span><span>INTENT</span></div>
+      <div class="card" id="eCard">
+        <div class="cardInner">
+          <div class="face back"></div>
+          <div class="face front"><span class="g"></span><span class="n"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="vs">—</div>
+    <div class="slot">
+      <div class="tell">&nbsp;</div>
+      <div class="card" id="pCard">
+        <div class="cardInner">
+          <div class="face back"></div>
+          <div class="face front"><span class="g"></span><span class="n"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side you">
+    <div class="label"><b>YOU</b><span id="stateLabel">commit a card</span></div>
+    <div class="units" id="pUnits"></div>
+    <div class="hand" id="hand"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="tune">
+    <span>TELL HONESTY</span>
+    <input type="range" id="rel" min="0" max="100" step="5" value="70">
+    <b id="relV">70%</b>
+  </div>
+
+  <div class="hint">
+    Enemy commits first, then shows its intent. The tell is honest <i>honesty%</i> of the time;
+    otherwise it shows one of the other two. Drag the slider to feel where the read stops mattering.
+  </div>
+
+</div>
+
+<script>
+// ---------------------------------------------------------------- tuning
+const CFG = {
+  UNIT_HP:       6,
+  STRIKE_DMG:    3,
+  GUARD_BLOCK:   2,
+  GUARD_COUNTER: 2,
+  RALLY_HEAL:    2,
+  UNITS_PER_SIDE:2,
+};
+
+const CARDS = {
+  STRIKE: { glyph:'▲', desc:'deal ' + CFG.STRIKE_DMG },
+  GUARD:  { glyph:'⬢', desc:'block ' + CFG.GUARD_BLOCK + ', counter ' + CFG.GUARD_COUNTER + ' vs ▲' },
+  RALLY:  { glyph:'✦', desc:'heal ' + CFG.RALLY_HEAL },
+};
+const KEYS = Object.keys(CARDS);
+
+// ---------------------------------------------------------------- state
+let reliability = 0.70;
+let busy = false;
+let enemyPick = null;   // enemy commits BEFORE the tell is shown
+let shownTell = null;
+let state;
+
+function freshSide(){
+  return Array.from({length:CFG.UNITS_PER_SIDE}, (_,i)=>({
+    id:i, hp:CFG.UNIT_HP, max:CFG.UNIT_HP
+  }));
+}
+function reset(){
+  state = { you:freshSide(), them:freshSide() };
+}
+
+const $  = s => document.querySelector(s);
+const $$ = (s,r=document) => [...r.querySelectorAll(s)];
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+// ---------------------------------------------------------------- render
+function unitHTML(u, who){
+  const pct = Math.max(0, u.hp / u.max * 100);
+  return `<div class="unit ${u.hp<=0?'dead':''}" data-side="${who}" data-id="${u.id}">
+    <div class="uname">${who==='you'?'UNIT':'FOE'} ${String.fromCharCode(65+u.id)}</div>
+    <div class="hpbar"><div class="hpfill" style="width:${pct}%"></div></div>
+    <div class="hpnum">${Math.max(0,u.hp)} / ${u.max}</div>
+  </div>`;
+}
+function renderUnits(){
+  $('#pUnits').innerHTML = state.you.map(u=>unitHTML(u,'you')).join('');
+  $('#eUnits').innerHTML = state.them.map(u=>unitHTML(u,'them')).join('');
+}
+function renderHand(){
+  $('#hand').innerHTML = KEYS.map(k=>`
+    <button class="play" data-c="${k}" ${busy?'disabled':''}>
+      <span class="g">${CARDS[k].glyph}</span>
+      <span class="n">${k}</span>
+    </button>`).join('');
+  $$('.play').forEach(b=>b.onclick=()=>commit(b.dataset.c));
+}
+function setCard(sel, key){
+  const el = $(sel);
+  if(!key){ el.classList.remove('flipped'); el.classList.add('empty'); return; }
+  el.classList.remove('empty');
+  el.querySelector('.front .g').textContent = CARDS[key].glyph;
+  el.querySelector('.front .g').style.color = `var(--${key.toLowerCase()})`;
+  el.querySelector('.front .n').textContent = key;
+}
+
+let logLines = [];
+function log(msg, now){
+  logLines.unshift({msg, now});
+  logLines = logLines.slice(0,4);
+  $('#log').innerHTML = logLines.map(l=>`<div class="${l.now?'now':''}">${l.msg}</div>`).join('');
+}
+
+// ---------------------------------------------------------------- round
+function pickEnemy(){
+  return KEYS[Math.floor(Math.random()*KEYS.length)];
+}
+function makeTell(truth){
+  if(Math.random() < reliability) return truth;
+  const others = KEYS.filter(k=>k!==truth);
+  return others[Math.floor(Math.random()*others.length)];
+}
+function newRound(){
+  enemyPick = pickEnemy();
+  shownTell = makeTell(enemyPick);
+  $('#tell').innerHTML =
+    `<span class="g" style="color:var(--${shownTell.toLowerCase()})">${CARDS[shownTell].glyph}</span><span>${shownTell}</span>`;
+  $('#tellLabel').textContent = 'intent shown';
+  $('#stateLabel').textContent = 'commit a card';
+  setCard('#pCard', null);
+  setCard('#eCard', null);
+  busy = false;
+  renderHand();
+}
+
+function frontUnit(side){ return side.find(u=>u.hp>0) || null; }
+function hurtUnit(side){
+  const alive = side.filter(u=>u.hp>0);
+  if(!alive.length) return null;
+  return alive.reduce((a,b)=> (a.hp/a.max <= b.hp/b.max ? a : b));
+}
+
+function floatText(side, id, text, cls){
+  const el = document.querySelector(`.unit[data-side="${side}"][data-id="${id}"]`);
+  if(!el) return;
+  const f = document.createElement('div');
+  f.className = 'float ' + cls;
+  f.textContent = text;
+  el.appendChild(f);
+  el.classList.add('hit');
+  setTimeout(()=>el.classList.remove('hit'), 300);
+  setTimeout(()=>f.remove(), 900);
+}
+function shake(){
+  const s = $('#shake');
+  s.classList.remove('shaking');
+  void s.offsetWidth;
+  s.classList.add('shaking');
+}
+
+async function commit(playerPick){
+  if(busy) return;
+  busy = true; renderHand();
+  $('#stateLabel').textContent = 'committed';
+  $('#tellLabel').textContent = '';
+
+  setCard('#pCard', playerPick);
+  setCard('#eCard', enemyPick);
+
+  // beat 1 — both face down
+  await wait(260);
+
+  // beat 2 — the flip. this is the moment.
+  $('#pCard').classList.add('flipped');
+  $('#eCard').classList.add('flipped');
+  const honest = shownTell === enemyPick;
+  log(`${CARDS[playerPick].glyph} ${playerPick}  vs  ${CARDS[enemyPick].glyph} ${enemyPick}` +
+      `<span style="color:${honest?'#7ee0a8':'#ff7a8a'}"> — tell was ${honest?'true':'a lie'}</span>`, true);
+  await wait(520);
+
+  // beat 3 — resolve
+  await resolve(playerPick, enemyPick);
+  await wait(420);
+
+  // wipe check
+  const youDead  = state.you.every(u=>u.hp<=0);
+  const themDead = state.them.every(u=>u.hp<=0);
+  if(youDead || themDead){
+    log(themDead ? '— their side falls. reset —' : '— your side falls. reset —');
+    await wait(900);
+    reset(); renderUnits();
+    await wait(200);
+  }
+  newRound();
+}
+
+async function resolve(p, e){
+  // outgoing damage
+  const pDmg = (p==='STRIKE' ? CFG.STRIKE_DMG : 0) + (p==='GUARD' && e==='STRIKE' ? CFG.GUARD_COUNTER : 0);
+  const eDmg = (e==='STRIKE' ? CFG.STRIKE_DMG : 0) + (e==='GUARD' && p==='STRIKE' ? CFG.GUARD_COUNTER : 0);
+  // blocks only apply to the STRIKE portion
+  const pBlock = p==='GUARD' ? CFG.GUARD_BLOCK : 0;
+  const eBlock = e==='GUARD' ? CFG.GUARD_BLOCK : 0;
+
+  const toThem = Math.max(0, pDmg - eBlock);
+  const toYou  = Math.max(0, eDmg - pBlock);
+
+  // heals first, so a rally into a strike still reads correctly
+  if(p==='RALLY'){
+    const u = hurtUnit(state.you);
+    if(u){ u.hp = Math.min(u.max, u.hp + CFG.RALLY_HEAL); floatText('you', u.id, '+'+CFG.RALLY_HEAL, 'heal'); }
+  }
+  if(e==='RALLY'){
+    const u = hurtUnit(state.them);
+    if(u){ u.hp = Math.min(u.max, u.hp + CFG.RALLY_HEAL); floatText('them', u.id, '+'+CFG.RALLY_HEAL, 'heal'); }
+  }
+  if(p==='RALLY' || e==='RALLY') { renderUnits(); await wait(280); }
+
+  let anyHit = false;
+  if(toThem > 0){
+    const u = frontUnit(state.them);
+    if(u){ u.hp -= toThem; floatText('them', u.id, '-'+toThem, 'dmg'); anyHit = true; }
+  }
+  if(toYou > 0){
+    const u = frontUnit(state.you);
+    if(u){ u.hp -= toYou; floatText('you', u.id, '-'+toYou, 'dmg'); anyHit = true; }
+  }
+
+  if(anyHit){
+    shake();
+    await wait(90);           // hitpause
+  } else {
+    log('both whiff.');
+  }
+  renderUnits();
+}
+
+// ---------------------------------------------------------------- boot
+$('#rel').addEventListener('input', ev=>{
+  reliability = ev.target.value / 100;
+  $('#relV').textContent = ev.target.value + '%';
+});
+
+document.addEventListener('keydown', ev=>{
+  const map = {'1':'STRIKE','2':'GUARD','3':'RALLY'};
+  if(map[ev.key]) commit(map[ev.key]);
+});
+
+reset();
+renderUnits();
+newRound();
+log('enemy commits first, then shows intent. read it or don\'t.');
+</script>
+</body>
+</html>
