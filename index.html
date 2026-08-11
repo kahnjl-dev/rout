@@ -777,6 +777,10 @@ function enemyChoose(){
         else v += myStrike * 0.25;
       }
       // reward claiming bounty
+      // (Tried a "swing" version that rewarded flipping a lane over padding one.
+      // Measured worse: the strongest fixed counter went 59% -> 70%, because a
+      // lane you cannot flip scores zero, so the AI stopped contesting at all.
+      // Kept the simple form.)
       const em = laneMorale(s,L)+card.m, pm = laneMorale(G.you,L);
       if(em > pm) v += LANE_BOUNTY[L] * 1.4;
       // survivability of the card we're placing (it becomes front)
