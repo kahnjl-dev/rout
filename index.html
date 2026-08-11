@@ -87,11 +87,27 @@
   .tagx.e{background:rgba(255,107,74,.2);color:var(--s);border:1px solid var(--s)}
   @keyframes fade{0%{opacity:0;transform:scale(.8)}20%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0}}
 
-  .facedown{
-    background:repeating-linear-gradient(45deg,#161a20,#161a20 4px,#1c212a 4px,#1c212a 8px);
-    height:44px;display:flex;align-items:center;justify-content:center;
-    font-size:9px;color:var(--faint);letter-spacing:.14em;
+  /* face-down commitment, then the reveal — the one moment the game is about */
+  .c.down{padding:0;border-style:dashed;border-color:#39414d;overflow:hidden}
+  .c.down .back{
+    height:38px;
+    background:repeating-linear-gradient(45deg,#171b22,#171b22 4px,#1e242d 4px,#1e242d 8px);
+    display:flex;align-items:center;justify-content:center;
+    font-size:8px;color:#4b5462;letter-spacing:.2em;
   }
+  .c.down{animation:drop .3s cubic-bezier(.2,.9,.3,1.2) both}
+  @keyframes drop{from{transform:translateY(-9px) scale(.9);opacity:0}to{transform:none;opacity:1}}
+  .c.revealing{animation:flipin .4s cubic-bezier(.3,.8,.35,1) both}
+  @keyframes flipin{
+    from{transform:perspective(420px) rotateY(-86deg);opacity:.25}
+    60% {transform:perspective(420px) rotateY(8deg);opacity:1}
+    to  {transform:none;opacity:1}
+  }
+
+  /* the lane currently being resolved */
+  .lane.resolving{border-color:var(--m);background:#1b1a13}
+  .lane.resolving .ltot{color:var(--m)}
+  .ltot.hot{color:var(--m);font-weight:700}
 
   /* hand */
   .handwrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:7px}
@@ -491,6 +507,7 @@ function mkSide(src){
 
 // ═══════════════════════════════════════════════ STATE
 let G, sel = null, busy = false, fightNo = 1;
+let resolvingLane = -1;      // lane currently being walked through, or -1
 
 let playerFaction = 'HUMANS';
 let run = null;
@@ -547,9 +564,12 @@ function beginFight(enc){
 
 // ═══════════════════════════════════════════════ RENDER
 function cardHTML(c, who, isFront){
+  if(c.down){                                  // committed, not yet revealed
+    return `<div class="c ${who} down" data-id="${c.id}"><div class="back">◆ ◆ ◆</div></div>`;
+  }
   // dead cards stay on the board but are inert: no strike, guard, morale, or blocking
   const dead = c.dead ? (c.dead==='eliminated' ? 'gone' : 'routed') : '';
-  const cls = ['c', who, (isFront && !c.dead)?'front':'', c.tag?'newly':'', dead].join(' ');
+  const cls = ['c', who, (isFront && !c.dead)?'front':'', c.tag?'newly':'', c.reveal?'revealing':'', dead].join(' ');
   const fate = c.dead ? `<span class="fate">${c.dead==='eliminated'?'ELIMINATED':'ROUTED'}</span>` : '';
   return `<div class="${cls}" data-id="${c.id}">
     <div class="nm">${c.n}</div>
@@ -559,8 +579,9 @@ function cardHTML(c, who, isFront){
   </div>`;
 }
 
-// only living cards count for anything
-const living  = arr => arr.filter(c=>!c.dead);
+// Only living, revealed cards count for anything. Excluding face-down cards
+// matters: otherwise the lane totals leak a committed card's Strike before it flips.
+const living  = arr => arr.filter(c=>!c.dead && !c.down);
 const frontOf = (side,i) => living(side.lanes[i])[0] || null;
 function laneMorale(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.m,0); }
 function laneStrike(side, i){ return living(side.lanes[i]).reduce((t,c)=>t+c.s,0); }
@@ -589,7 +610,7 @@ function render(){
                : '<span class="held">CONTESTED</span>';
     const ps = laneStrike(G.you,i), es = laneStrike(G.them,i);
     const eFront = frontOf(G.them,i), pFront = frontOf(G.you,i);
-    return `<div class="lane ${sel!==null&&!busy&&!G.over?'pick':''}" data-lane="${i}">
+    return `<div class="lane ${sel!==null&&!busy&&!G.over?'pick':''} ${resolvingLane===i?'resolving':''}" data-lane="${i}">
       <div class="ltot">${es?`▲${es} vs ⬢${pFront?pFront.g:'—'}`:'&nbsp;'}</div>
       <div class="stack them">${eStack}</div>
       <div class="bounty">BOUNTY <b>${b}</b>${held}</div>
@@ -844,41 +865,60 @@ async function place(lane){
   }
   const foeCard = G.them.hand.splice(pick.hi,1)[0];
 
-  // face down beat
-  G.you.lanes[lane].unshift(myCard);          // FRONT
+  // ── 1. both commit, face down ──
+  myCard.down = foeCard.down = true;
+  G.you.lanes[lane].unshift(myCard);           // FRONT
   G.them.lanes[pick.L].unshift(foeCard);
   lastPlayerLane = lane;      // set AFTER the AI chose — it never sees this wave
-  myCard.tag = foeCard.tag = true;
-  say(`Wave ${G.wave} — both committed.`);
+  say(`Wave ${G.wave} — both committed. Neither of you can see the other.`);
   render();
-  await wait(450);
-  myCard.tag = foeCard.tag = false;
+  await wait(560);
 
-  // resolve every lane simultaneously
+  // ── 2. reveal, together ──
+  delete myCard.down; delete foeCard.down;
+  myCard.reveal = foeCard.reveal = true;
+  render();
+  await wait(420);
+  delete myCard.reveal; delete foeCard.reveal;
+
+  // Outcomes are computed for ALL lanes now, before anything is shown — combat
+  // is simultaneous. Only the presentation below is sequential, so the player
+  // can follow one lane at a time and reconstruct why it went the way it did.
   const plan = [];
   for(let L=0; L<3; L++){
-    const pS = laneStrike(G.you,L), eS = laneStrike(G.them,L);
-    plan.push({ L, toThem: computeDamage(living(G.them.lanes[L]), pS), toYou: computeDamage(living(G.you.lanes[L]), eS) });
+    plan.push({ L,
+      pS: laneStrike(G.you,L), eS: laneStrike(G.them,L),
+      pFront: frontOf(G.you,L), eFront: frontOf(G.them,L),
+      toThem: computeDamage(living(G.them.lanes[L]), laneStrike(G.you,L)),
+      toYou:  computeDamage(living(G.you.lanes[L]),  laneStrike(G.them,L)) });
   }
 
-  const lines = [];
-  let anyElim = false, anyHit = false;
-  for(const p of plan){
-    for(const {c,o} of p.toThem){ markTag(c,o); if(o==='eliminated') anyElim=true; anyHit=true; }
-    for(const {c,o} of p.toYou){  markTag(c,o); if(o==='eliminated') anyElim=true; anyHit=true; }
-    const kills = p.toThem.length, losses = p.toYou.length;
-    if(kills||losses) lines.push(`Lane ${p.L+1}: you break <b>${kills}</b>, they break <b>${losses}</b>`);
+  const active = plan.filter(p=>p.toThem.length || p.toYou.length);
+  if(!active.length){
+    say(`Wave ${G.wave} — the lines hold. Nothing breaks.`);
+    await wait(700);
   }
-  render();
-  paintTags(plan);
-  if(anyElim) shake();
-  say(lines.length ? lines.join(' &nbsp;·&nbsp; ') : `Wave ${G.wave} — nothing breaks.`);
-  await wait(anyHit ? 1150 : 550);
 
-  // apply outcomes
-  for(const p of plan){
+  // ── 3. resolve, one lane at a time ──
+  for(const p of active){
+    resolvingLane = p.L;
+    const yours  = p.toThem.map(x=>`${x.c.n} ${x.o==='eliminated'?'ELIMINATED':'routed'}`).join(', ');
+    const theirs = p.toYou .map(x=>`${x.c.n} ${x.o==='eliminated'?'ELIMINATED':'routed'}`).join(', ');
+    say(`<b>Lane ${p.L+1}</b> — `
+      + (yours  ? `your ▲${p.pS} breaks ⬢${p.eFront?p.eFront.g:'—'}: <b>${yours}</b>. ` : '')
+      + (theirs ? `their ▲${p.eS} breaks ⬢${p.pFront?p.pFront.g:'—'}: <b>${theirs}</b>.` : ''));
+
+    for(const {c,o} of p.toThem) markTag(c,o);
+    for(const {c,o} of p.toYou)  markTag(c,o);
+    render();
+    paintTags();
+    if([...p.toThem, ...p.toYou].some(x=>x.o==='eliminated')) shake();
+    await wait(active.length > 1 ? 820 : 1050);
+
     applyOutcomes(G.them, p.L, p.toThem);
     applyOutcomes(G.you,  p.L, p.toYou);
+    resolvingLane = -1;
+    render();
   }
 
   G.wave++;
