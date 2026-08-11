@@ -135,6 +135,34 @@
     padding:10px;font-family:inherit;font-size:11px;letter-spacing:.1em;flex:1;
   }
   .hint{margin-top:8px;font-size:10.5px;color:var(--faint);line-height:1.55}
+
+  /* ---- run-start faction pick ---- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(8,10,13,.94);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;
+  }
+  .overlay.hide{display:none}
+  .pickbox{width:100%;max-width:460px}
+  .pickbox h2{font-size:13px;letter-spacing:.24em;color:var(--dim);text-align:center;margin-bottom:5px;font-weight:600}
+  .pickbox .sub2{font-size:11px;color:var(--faint);text-align:center;margin-bottom:16px;line-height:1.5}
+  .picks{display:flex;flex-direction:column;gap:9px}
+  .pk{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 13px;
+    cursor:pointer;transition:border-color .14s,background .14s,transform .1s;text-align:left;
+    font-family:inherit;color:var(--text);width:100%;
+  }
+  .pk:hover{border-color:#3d4753;background:#1a1f26}
+  .pk:active{transform:scale(.99)}
+  .pk .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .pk .fn{font-size:14px;letter-spacing:.2em;font-weight:600}
+  .pk .lead{font-size:10px;letter-spacing:.1em;color:var(--dim)}
+  .pk .lead b{font-size:16px;color:var(--m);font-variant-numeric:tabular-nums;margin-left:5px}
+  .pk .bl{font-size:11px;color:var(--dim);line-height:1.5;margin-bottom:9px}
+  .pk .bars{display:flex;flex-direction:column;gap:4px}
+  .pk .bar{display:flex;align-items:center;gap:7px;font-size:9px;letter-spacing:.1em;color:var(--faint)}
+  .pk .bar .track{flex:1;height:5px;background:#0a0d11;border-radius:3px;overflow:hidden}
+  .pk .bar .fill{height:100%;border-radius:3px}
+  .pk .bar .num{width:20px;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
 </style>
 </head>
 <body>
@@ -166,8 +194,7 @@
   <div id="endSlot"></div>
 
   <div class="ctrls">
-    <select id="pFaction" title="your faction"></select>
-    <select id="eFaction" title="enemy faction"></select>
+    <select id="eFaction" title="enemy faction (temporary — the ladder replaces this)"></select>
     <button class="btn" id="restart">NEW RUN</button>
   </div>
 
@@ -177,6 +204,14 @@
     Most morale at the end wins: leader + surviving cards on the field + lane bounties.
   </div>
 
+</div>
+
+<div class="overlay" id="factionPick">
+  <div class="pickbox">
+    <h2>CHOOSE YOUR WARBAND</h2>
+    <div class="sub2">Leader morale is your floor — the points you keep even if the field is lost.</div>
+    <div class="picks" id="picks"></div>
+  </div>
 </div>
 
 <script>
@@ -247,9 +282,11 @@ function mkSide(src){
 // ═══════════════════════════════════════════════ STATE
 let G, sel = null, busy = false, fightNo = 1;
 
+let playerFaction = 'HUMANS';
+
 function newRun(){
   fightNo = 1;
-  G = { you: mkSide(FACTIONS[$('#pFaction').value]), them: mkSide(FACTIONS[$('#eFaction').value]) };
+  G = { you: mkSide(FACTIONS[playerFaction]), them: mkSide(FACTIONS[$('#eFaction').value]) };
   newFight();
 }
 function newFight(){
@@ -505,16 +542,46 @@ function finish(){
 function fillFactionSelect(sel, chosen){
   sel.innerHTML = FACTION_KEYS.map(k=>{
     const f = FACTIONS[k];
-    return `<option value="${k}" ${k===chosen?'selected':''}>${f.name} · leader ${f.base}</option>`;
+    return `<option value="${k}" ${k===chosen?'selected':''}>vs ${f.name}</option>`;
   }).join('');
 }
-fillFactionSelect($('#pFaction'), 'HUMANS');
 fillFactionSelect($('#eFaction'), 'GOBLINS');
 
-$('#restart').onclick  = newRun;
-$('#pFaction').onchange = newRun;
+// deck shape, so the pick is informed without listing eight cards
+const avg = (deck,k) => deck.reduce((a,c)=>a+c[k],0) / deck.length;
+
+function renderPicks(){
+  $('#picks').innerHTML = FACTION_KEYS.map(k=>{
+    const f = FACTIONS[k];
+    const s = avg(f.deck,'s'), g = avg(f.deck,'g');
+    return `<button class="pk" data-f="${k}">
+      <div class="top">
+        <span class="fn">${f.name}</span>
+        <span class="lead">LEADER MORALE<b>${f.base}</b></span>
+      </div>
+      <div class="bl">${f.blurb}</div>
+      <div class="bars">
+        <div class="bar"><span>▲ STRIKE</span>
+          <span class="track"><span class="fill" style="width:${s/9*100}%;background:var(--s)"></span></span>
+          <span class="num">${s.toFixed(1)}</span></div>
+        <div class="bar"><span>⬢ GUARD&nbsp;</span>
+          <span class="track"><span class="fill" style="width:${g/7*100}%;background:var(--g)"></span></span>
+          <span class="num">${g.toFixed(1)}</span></div>
+      </div>
+    </button>`;
+  }).join('');
+  document.querySelectorAll('.pk').forEach(b=>{
+    b.onclick = ()=>{ playerFaction = b.dataset.f; $('#factionPick').classList.add('hide'); newRun(); };
+  });
+}
+
+function showPicker(){ renderPicks(); $('#factionPick').classList.remove('hide'); }
+
+$('#restart').onclick   = showPicker;
 $('#eFaction').onchange = newRun;
-newRun();
+
+newRun();        // build a valid state behind the overlay
+showPicker();
 </script>
 </body>
 </html>
