@@ -47,7 +47,7 @@ Only the boss pays out.
 
 ## Building it
 
-Made in a couple of days as a portfolio piece, directing an AI coding agent — scoping,
+Made in a single day as a portfolio piece, directing an AI coding agent — scoping,
 reviewing, and making the design calls rather than writing the code. The build log is
 **inside the game** — "HOW THIS WAS BUILT" at the bottom of the page, or at the end of a
 run. It covers the design calls, the ones I reversed, and the balance changes that came
