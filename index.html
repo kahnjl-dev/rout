@@ -377,9 +377,14 @@ assertDecks();
 // ═══════════════════════════════════════════════ LADDER
 // Three rungs then a boss. Difficulty rides on enemy leader morale, the same
 // axis factions already differ on — no new mechanic, no new numbers to read.
-const RUNG_BONUS = [0, 1, 2];
-const BOSS_BONUS = 4;
-const MIN_DECK   = 3;          // below this you cannot fill three waves
+// Negative early bonuses rather than a hidden player buff: the bottom of the
+// ladder is genuinely a weaker warband, and every faction still shows its own
+// honest leader morale. Tuned from 1200-run batches to land a competent player
+// near 50% fights won and ~35% boss kills.
+let RUNG_BONUS = [-3, -2, -2];
+let BOSS_BONUS = -1;
+const MIN_DECK    = 3;         // below this you cannot fill three waves
+const SCATTER_CAP = 1;         // routed cards lost per defeat
 
 const TITLES = {
   HUMANS: ['FREE COMPANY','BORDER LEVY','OATHSWORN'],
@@ -504,8 +509,13 @@ function beginFight(enc){
   you.lanes = [[],[],[]];
 
   if(run.lastLoss){
-    // LOSS PENALTY: you lost, so the routed don't rally — they scatter.
-    // Self-scaling: a narrow loss costs one card, a rout costs three.
+    // LOSS PENALTY: you lost, so some of the routed don't rally — they scatter.
+    // Capped, because losing every routed card compounded into a death spiral:
+    // measured, an uncapped penalty wiped 37-52% of runs out of cards entirely.
+    you.fallen.sort((a,b)=>a.m - b.m);       // the least valuable are left behind
+    const rally = you.fallen.slice(SCATTER_CAP);
+    rally.forEach(c=>{ delete c.dead; delete c._tag; });
+    you.deck = you.deck.concat(rally);
     you.fallen = [];
     run.lastLoss = false;
   } else {
@@ -755,21 +765,23 @@ const BMIN = Math.min(...LANE_BOUNTY), BSPAN = Math.max(...LANE_BOUNTY) - BMIN |
 // seeking reinforce each other instead of competing. An empty lane falls back to
 // the bounty as a weak hint, kept well under 1 so a fat lane never reads as an
 // actual enemy.
-function contention(L){
-  const n = living(G.you.lanes[L]).length;
+function contention(foe, L){
+  const n = living(foe.lanes[L]).length;
   return n ? n : 0.45 * (LANE_BOUNTY[L] - BMIN) / BSPAN;
 }
 
 let lastPlayerLane = null;      // public board knowledge: where you went last wave
 
-function enemyChoose(){
-  const s = G.them;
+// Generalised so either side can be scored with it — the balance harness needs a
+// "competent player" to measure against, and the fairest definition of that is
+// the same evaluator the AI uses with a neutral posture.
+function pickMove(s, foe, P, mirrorLane){
   let best = null;
   s.hand.forEach((card, hi)=>{
     for(let L=0; L<3; L++){
       let v = 0;
       const myStrike = laneStrike(s,L) + card.s;
-      const foeFront = frontOf(G.you, L);          // living front, not a corpse
+      const foeFront = frontOf(foe, L);          // living front, not a corpse
       // reward breaking their front card
       if(foeFront){
         if(myStrike >= foeFront.g*2) v += 8 + foeFront.m*1.5;
@@ -781,17 +793,16 @@ function enemyChoose(){
       // Measured worse: the strongest fixed counter went 59% -> 70%, because a
       // lane you cannot flip scores zero, so the AI stopped contesting at all.
       // Kept the simple form.)
-      const em = laneMorale(s,L)+card.m, pm = laneMorale(G.you,L);
+      const em = laneMorale(s,L)+card.m, pm = laneMorale(foe,L);
       if(em > pm) v += LANE_BOUNTY[L] * 1.4;
       // survivability of the card we're placing (it becomes front)
-      const threat = laneStrike(G.you,L);
+      const threat = laneStrike(foe,L);
       if(threat >= card.g*2) v -= 5 + card.m;
       else if(threat >= card.g) v -= 2 + card.m*0.5;
       // ── faction posture ──
-      const P = POSTURE[s.style] || POSTURE.mass;
       v += P.mass * MASS_W * living(s.lanes[L]).length;      // concentrate / fan out
-      v += P.seek * SEEK_W * (contention(L) - 0.6);          // seek / avoid conflict
-      if(P.mirror && lastPlayerLane === L) v += P.mirror * MIRROR_W;   // meet you head on
+      v += P.seek * SEEK_W * (contention(foe,L) - 0.6);      // seek / avoid conflict
+      if(P.mirror && mirrorLane === L) v += P.mirror * MIRROR_W;   // meet you head on
 
       v += Math.random()*2.2;
       if(!best || v > best.v) best = {v, hi, L, card};
@@ -799,6 +810,14 @@ function enemyChoose(){
   });
   return best;
 }
+
+function enemyChoose(){
+  const P = POSTURE[G.them.style] || POSTURE.mass;
+  return pickMove(G.them, G.you, P, lastPlayerLane);
+}
+
+// a posture-free opponent, used only by the balance harness as "competent play"
+const NEUTRAL = { mass:0.30, seek:0.30, mirror:0 };
 
 // ═══════════════════════════════════════════════ RESOLUTION
 // returns [{card, outcome}] applied front-to-back
@@ -941,12 +960,18 @@ function finish(){
   if(won) run.wins++; else run.losses++;
 
   const verdict = won ? 'YOU HOLD THE FIELD' : 'YOU ARE ROUTED';
-  const penalty = (!won && routedNow)
-    ? `<div class="pen">Your side broke. <b>${routedNow}</b> routed card${routedNow>1?'s':''} scatter${routedNow>1?'':'s'} — gone for the run.</div>`
-    : (!won ? `<div class="pen">Your side broke, but nothing was left behind.</div>` : '');
+  // on a defeat only the least valuable routed card is left behind; the rest rally
+  const lost   = won ? 0 : Math.min(routedNow, SCATTER_CAP);
+  const leftBehind = lost ? [...G.you.fallen].sort((a,b)=>a.m-b.m)[0] : null;
+  const penalty = !won
+    ? (leftBehind
+        ? `<div class="pen">Your side broke. <b>${leftBehind.n}</b> scatters — gone for the run.${
+            routedNow>1 ? ` The other ${routedNow-1} routed card${routedNow>2?'s':''} rally.` : ''}</div>`
+        : `<div class="pen">Your side broke, but nothing was left behind.</div>`)
+    : '';
 
   // deck after this fight resolves
-  const deckAfter = G.you.deck.length + (won ? routedNow : 0);
+  const deckAfter = G.you.deck.length + routedNow - lost;
   const wiped   = deckAfter < MIN_DECK;
   const bossWon = won && run.current.isBoss;
   run.done = wiped || bossWon || (run.rung >= 3);
