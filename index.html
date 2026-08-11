@@ -390,95 +390,77 @@
 
 <div class="overlay hide" id="logOv"><div class="logbox"><div class="log">
   <h1>HOW THIS WAS BUILT</h1>
-  <div class="lede">A couple of days. One person, no engineers, directing an AI coding agent.</div>
+  <div class="lede">A card game made in a couple of days. I designed it; an AI agent wrote the code.
+  This is how it changed along the way.</div>
 
-  <p>I'm not a programmer. I design systems and direct agents to build them — I do the scoping,
-  the reviewing, and the design calls; the agent writes the code. ROUT exists to show what that
-  process actually looks like, so this is an honest account of it, including the parts where I
-  was wrong and the parts where the agent was.</p>
+  <h2>1 · WHERE IT STARTED</h2>
+  <p>The idea came from a board game called Forbidden Stars. Both players secretly pick a card,
+  reveal at the same moment, and fight it out over three rounds. The part I wanted was the scoring:
+  <b>you don't win by killing things, you win on morale.</b> Destroying an enemy card is just one
+  way of taking its points off the board.</p>
+  <p>The first design added a bluffing layer on top. The enemy would hint at what it was about to
+  play — and the better you got at reading those hints, the more often it would lie to you.</p>
 
-  <h2>PICKING SOMETHING WORTH BUILDING</h2>
-  <p>I came in with two candidates: card combat, or small-grid tactics. The agent argued against
-  the card game — a card game's depth scales with its card list, and two days buys you fifteen
-  cards and an unflattering comparison to Slay the Spire.</p>
-  <p>I pushed back, because my reference wasn't a deckbuilder. It was the combat system from the
-  board game <b>Forbidden Stars</b>: both sides commit a card face down, reveal simultaneously,
-  resolve over three rounds, and win on <b>morale</b> rather than kills. The agent had reasoned
-  from memory rather than the rules. It went and read them, and reversed its own recommendation.</p>
-  <p>That set the working pattern for everything after: I bring the design intent, the agent
-  stress-tests it, and whoever has the better evidence wins.</p>
+  <h2>2 · WHAT CHANGED FIRST</h2>
+  <p>The bluffing went in the bin. An opponent that gets less honest while you're playing doesn't
+  feel cunning, it feels like the game is cheating. So we cut the hints entirely, on the grounds
+  that if the basic decision underneath — which card, which lane — wasn't interesting on its own,
+  no amount of mind games layered on top was going to save it.</p>
+  <p>That immediately exposed a real problem. With three identical lanes, your opening move was a
+  <b>fake choice</b>: it looked like a decision, but nothing was riding on which lane you picked.
+  Giving each lane a points bounty fixed it — one number per lane, and suddenly there's ground
+  worth fighting over and a reason to care where you commit.</p>
 
-  <h2>THE CALLS THAT SHAPED IT</h2>
-  <p>The first real mechanic proposed to me was an opponent whose "tells" became less honest as
-  you read them correctly. I killed it. A system that changes its reliability mid-fight doesn't
-  read as cunning, it reads as the game cheating. We moved that dial onto the enemy itself —
-  some warbands are easier to read than others — and then cut tells entirely from the first
-  version, because if the underlying trade-off isn't interesting, no information layer rescues it.</p>
-  <p>Scoring went through three versions before it worked. Scoring your <b>unspent hand</b> sounded
-  elegant and played terribly — every turn was a pure loss, and you could only ever go down. Moving
-  the score onto the <b>board</b> fixed it: your cards are simultaneously your weapons and your
-  points, so the thing you're risking and the thing you're scored on are the same object.</p>
-  <p>Then a problem the agent surfaced that I hadn't seen: with three identical lanes, the opening
-  placement was a <i>meaningless</i> choice — not a hard one, a fake one. Lane bounties fixed it in
-  one number per lane, and turned the whole board into an area-control fight.</p>
-  <p>Some calls were about restraint. The run is a deliberate <b>death march</b> — you only ever get
-  weaker, and only the boss pays out. When the agent built an ascension loop on top of that, I cut it.
-  It was scope creep wearing a good idea's clothes.</p>
+  <h2>3 · WHAT WE DISCOVERED</h2>
+  <p>Once it was playable we simulated thousands of complete runs to see whether the difficulty
+  was anywhere near right. It wasn't even close.</p>
+  <div class="data">                    BEFORE
+beat the final boss     3% - 10% of runs
+ran out of cards       49% - 83% of runs</div>
+  <p>A player was losing nearly every fight and running out of cards before the end. Anyone trying
+  this would have lost four fights in a row and never seen the final boss exist. You cannot feel a
+  problem like that from playing a few games yourself — it only shows up when you run thousands.</p>
 
-  <h2>WHERE MEASUREMENT BEAT OPINION</h2>
-  <p>The most useful thing about working this way is that you can <i>ask</i> instead of arguing.
-  Every balance question got answered by simulating thousands of runs, not by anyone's taste.</p>
-  <p>The ladder was quietly unwinnable and nobody would have noticed by feel:</p>
-  <div class="data">                BEFORE            AFTER
-HUMANS     boss won 10%      boss won 36%
-GOBLINS    boss won  3%      boss won 29%
-DWARVES    boss won  5%      boss won 32%
-           wiped out 49-83%  wiped out 13-34%</div>
-  <p>A reviewer would have played it, lost four fights, and never seen the boss. The fix wasn't
-  intuition — it was finding that the loss penalty compounded into a death spiral, and that the
-  difficulty knob everyone reaches for (hand size) does <b>nothing</b>: 5, 6 or 7 cards produced
-  40%, 39%, 40%.</p>
-  <p>Simulation also killed a change that sounded obviously correct. I had the agent reward the AI
-  for <i>flipping</i> a lane it was losing rather than padding one it held. Measured, it made the
-  game <b>more</b> exploitable, not less — the best fixed counter-strategy went from 59% to 70% —
-  because a lane you can't flip scores zero, so the AI stopped contesting entirely. We reverted it
-  and left the finding in the code comment so nobody re-tries it.</p>
-  <div class="aside">Two bugs were only visible because we measured: the balance harness was placing
-  the player's card before asking the AI to choose, so it was being scored while peeking at a wave
-  it's blind to. And the lane totals were counting face-down cards — leaking the opponent's
-  commitment during the exact beat that's supposed to be hidden.</div>
+  <h2>4 · WHAT CHANGED NEXT</h2>
+  <p>Two things, both chosen by testing rather than guessing.</p>
+  <p>The enemies at the bottom of the ladder became genuinely weaker warbands, so the difficulty
+  ramps up instead of starting at the top. And losing a fight got much less punishing: it used to
+  cost you every damaged card at once, which meant losing made you more likely to lose again, and
+  again, until you had nothing left. Now it costs you one.</p>
+  <div class="data">                    BEFORE          AFTER
+beat the final boss     3% - 10%      29% - 36%
+ran out of cards       49% - 83%      13% - 34%</div>
+  <p>Worth noting what <i>didn't</i> work: the obvious lever — dealing the player more cards to
+  choose from — did nothing at all. Five, six or seven cards in hand produced win rates of 40%,
+  39% and 40%. Two days is not enough time to spend it on changes that feel productive and aren't.</p>
 
-  <h2>THE OPPONENT</h2>
-  <p>With tells cut, the only read you get is <i>where</i> the enemy places. So the factions had to
-  play visibly differently. My first instinct — make the goblins both swarm and seek out fights —
-  turned out to be impossible, and the sweep proved it: across six weightings, their tendency to
-  pile up and their tendency to chase you moved strictly inversely.</p>
-  <p>So each faction owns one behaviour instead. Goblins hunt you, Humans form up, Dwarves garrison
-  every approach. What you learn from watching wave one is a different <i>kind</i> of fact for each
-  of them, rather than more or less of the same one.</p>
-  <div class="data">              contest    pile    spread
-GOBLINS  hunt      50%      12%       21%
-HUMANS   mass      17%      83%        0%
-DWARVES  hold      20%       0%       55%</div>
+  <h2>5 · WHAT CHANGED AFTER THAT</h2>
+  <p>The last problem was the enemy. With the bluffing cut, the only thing you can read about your
+  opponent is <b>where they put their cards</b> — so the three warbands had to behave visibly
+  differently, or every fight would feel the same.</p>
+  <p>My first instinct was to make the goblins both swarm together <i>and</i> chase you around the
+  board. Testing showed that's impossible: the more they chased, the less they swarmed, in a
+  straight line. So each faction got one behaviour of its own instead.</p>
+  <div class="data">GOBLINS   hunt you down, wherever you are
+HUMANS    form up and concentrate in one lane
+DWARVES   spread out and hold every lane at once</div>
+  <p>Now what you learn from watching the first move is a different <i>kind</i> of fact depending
+  on who you're fighting, and each one needs a different answer from you.</p>
 
-  <h2>WHAT I'D DO NEXT</h2>
-  <ul>
-    <li>Bring tells back now that the underlying trade-off holds up on its own</li>
-    <li>Faction initiative — deliberately deferred, because it breaks simultaneity, which is the whole core</li>
-    <li>Give the Dwarves an answer to a concentrated stack; they currently have neither the Strike
-      to break one nor the numbers to out-score it</li>
-    <li>Real players. Every number here comes from simulation, which tells you what is
-      <i>possible</i>, never what is <i>fun</i></li>
-  </ul>
+  <h2>6 · WHERE IT LANDED</h2>
+  <p>A short run: three fights, then a boss, choosing your road as you go. You get weaker the whole
+  way down — cards you lose are gone — and only beating the boss gives anything back. A competent
+  player wins about half their fights and finishes the run roughly a third of the time.</p>
+  <p>What I'd do with more time: bring the bluffing back now that the fight underneath is solid,
+  give the dwarves some answer to being overwhelmed in one lane, and — most importantly — put it
+  in front of real people. Every number above comes from simulation, and simulation tells you what
+  is <i>possible</i>, never what is <i>fun</i>.</p>
 
-  <h2>WHAT THIS DEMONSTRATES</h2>
-  <p>Not that an agent can write a card game — that's not in question. What's worth showing is the
-  division of labour: the agent is fast and tireless and will confidently build the wrong thing;
-  the judgement about what's worth building, what to cut, and when a measurement is lying to you
-  has to come from somewhere. Every decision above was mine. Every line of code was the agent's.</p>
-  <p>The practice that made it work is small and repeatable — <b>simulate before you argue</b>,
-  <b>keep the rejected experiments and their data</b>, and <b>assert your invariants</b> so the
-  thing that broke once can't break again quietly.</p>
+  <h2>HOW THE WORK WAS SPLIT</h2>
+  <p>I'm not a programmer. I decided what to build, what to cut, and when a result was worth
+  trusting; the agent wrote every line of code and ran every test. The useful part isn't that an
+  agent can write a card game — it's that the agent is fast, tireless, and perfectly willing to
+  build the wrong thing well. Someone still has to decide what's worth building.</p>
 </div>
 <div class="picks" style="margin-top:20px">
   <button class="pk" id="logClose"><div class="top"><span class="fn">BACK TO THE GAME</span></div></button>
