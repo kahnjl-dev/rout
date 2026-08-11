@@ -173,6 +173,42 @@
   .rungstrip i.done{color:var(--you)}
   .rungstrip i.lost{color:var(--them)}
   .rungstrip i.now{color:var(--m)}
+  /* ---- coach marks ---- */
+  .coach{
+    background:rgba(255,196,74,.07);border:1px solid rgba(255,196,74,.3);
+    border-radius:8px;padding:9px 11px;margin-bottom:7px;
+    font-size:11.5px;line-height:1.55;color:var(--text);
+    display:flex;gap:10px;align-items:flex-start;
+  }
+  .coach.hide{display:none}
+  .coach .txt{flex:1}
+  .coach .txt b{color:var(--m)}
+  .coach .sk{
+    background:none;border:none;color:var(--faint);font-family:inherit;font-size:9.5px;
+    letter-spacing:.12em;cursor:pointer;padding:2px 0;white-space:nowrap;
+  }
+  .coach .sk:hover{color:var(--dim)}
+  .spot{
+    outline:2px solid var(--m);outline-offset:3px;border-radius:10px;
+    animation:pulseout 1.5s ease-in-out infinite;
+  }
+  @keyframes pulseout{0%,100%{outline-color:rgba(255,196,74,.75)}50%{outline-color:rgba(255,196,74,.2)}}
+
+  /* ---- help ---- */
+  .helpbtn{
+    background:none;border:1px solid var(--line);color:var(--dim);border-radius:50%;
+    width:22px;height:22px;font-family:inherit;font-size:11px;cursor:pointer;line-height:1;
+  }
+  .helpbtn:hover{color:var(--text);border-color:#3d4753}
+  .rules{font-size:11.5px;line-height:1.65;color:var(--dim)}
+  .rules h3{font-size:10px;letter-spacing:.18em;color:var(--m);margin:13px 0 5px;font-weight:600}
+  .rules h3:first-child{margin-top:0}
+  .rules b{color:var(--text)}
+  .rules .gl{color:var(--s)}
+  .rules ul{list-style:none;padding:0}
+  .rules li{padding:2px 0 2px 12px;position:relative}
+  .rules li:before{content:'·';position:absolute;left:2px;color:var(--faint)}
+
   .map{width:100%;max-width:310px;margin:0 auto 12px;display:block}
   .map g[data-node]:hover circle:not([fill="transparent"]){filter:brightness(1.35)}
   .pen{
@@ -190,8 +226,16 @@
 
   <header>
     <h1>R O U T</h1>
-    <span class="meta" id="meta">fight 1 · wave 1/3</span>
+    <span style="display:flex;align-items:center;gap:9px">
+      <span class="meta" id="meta">rung 1/3 · wave 1/3</span>
+      <button class="helpbtn" id="help" title="rules" aria-label="rules">?</button>
+    </span>
   </header>
+
+  <div class="coach hide" id="coach">
+    <span class="txt" id="coachTxt"></span>
+    <button class="sk" id="coachSkip">SKIP</button>
+  </div>
 
   <div class="leader them">
     <span class="who">LEADER <b id="eName">—</b></span>
@@ -218,9 +262,7 @@
   </div>
 
   <div class="hint">
-    Tap a card, then tap a lane. One card per wave, three waves. New cards go to the <b>front</b> of a lane.
-    Strike ≥ Guard routs (returns next fight). Strike ≥ 2×Guard eliminates (gone from your deck).
-    Most morale at the end wins: leader + surviving cards on the field + lane bounties.
+    Rules any time via <b>?</b> up top.
   </div>
 
 </div>
@@ -235,6 +277,48 @@
 
 <div class="overlay hide" id="branchPick"><div class="pickbox" id="branchBox"></div></div>
 <div class="overlay hide" id="runEnd"><div class="pickbox" id="runEndBox"></div></div>
+
+<div class="overlay hide" id="rulesOv"><div class="pickbox">
+  <h2>HOW IT WORKS</h2>
+  <div class="rules">
+    <h3>A FIGHT</h3>
+    Three lanes, three waves. Each wave you place one card face down in a lane; your
+    opponent does the same at the same time. Then both reveal and resolve at once.
+
+    <h3>EVERY CARD</h3>
+    <ul>
+      <li><b style="color:var(--s)">▲ Strike</b> — added up across your side of a lane</li>
+      <li><b style="color:var(--g)">⬢ Guard</b> — only the <b>frontmost</b> card defends</li>
+      <li><b style="color:var(--m)">✦ Morale</b> — what it scores if it survives</li>
+    </ul>
+    New cards go to the <b>front</b>, so the card you just played is the one defending —
+    and the first to die.
+
+    <h3>BREAKING A CARD</h3>
+    <ul>
+      <li>Strike <b>≥</b> their Guard → <b style="color:var(--m)">ROUTED</b>. Scores nothing this fight, returns for the next one.</li>
+      <li>Strike <b>≥ 2×</b> their Guard → <b style="color:var(--s)">ELIMINATED</b>. Gone from your warband for the whole run.</li>
+    </ul>
+    Leftover Strike carries to the card behind. You can't reach past a card you didn't break.
+
+    <h3>WINNING</h3>
+    You win on morale, not kills:
+    <ul>
+      <li>your <b>leader morale</b></li>
+      <li>+ <b>✦ Morale</b> of your cards still standing</li>
+      <li>+ <b>lane bounties</b> (2/3/2) to whoever holds the most morale in that lane</li>
+    </ul>
+    Routing a card denies its morale just as well as killing it.
+
+    <h3>THE RUN</h3>
+    Three rungs then a boss. You choose your road each rung. Lose a fight and your routed
+    cards scatter instead of returning — so a narrow loss costs one card, a collapse costs
+    three. Nothing replaces them until the boss.
+  </div>
+  <div class="picks" style="margin-top:14px">
+    <button class="pk" id="rulesClose"><div class="top"><span class="fn">BACK</span></div></button>
+  </div>
+</div></div>
 
 <script>
 // ═══════════════════════════════════════════════ TUNING
@@ -442,6 +526,7 @@ function beginFight(enc){
     ? `<b>${enc.title}</b> — the last fight. Three waves.`
     : `<b>${enc.title}</b> — three waves. Pick a card, pick a lane.`);
   render();
+  tutStep(0);                       // no-ops after the first fight
 }
 
 // ═══════════════════════════════════════════════ RENDER
@@ -506,11 +591,46 @@ function render(){
       <div class="row"><span style="color:var(--m)">✦${c.m}</span></div>
     </div>`).join('');
   document.querySelectorAll('.hc').forEach(el=>{
-    el.onclick = ()=>{ if(busy||G.over) return; sel = (sel===+el.dataset.i)?null:+el.dataset.i; render(); };
+    el.onclick = ()=>{
+      if(busy||G.over) return;
+      sel = (sel===+el.dataset.i)?null:+el.dataset.i;
+      render();
+      if(sel!==null) tutStep(1);
+    };
   });
 }
 function say(t){ $('#msg').innerHTML = t; }
 function shake(){ const w=$('#wrap'); w.classList.remove('shaking'); void w.offsetWidth; w.classList.add('shaking'); }
+
+// ═══════════════════════════════════════════════ COACH MARKS
+// Teach through the first fight, one idea at a time — no rules wall up front.
+// The `?` button keeps all of it reachable afterwards.
+let tut = { on:true, step:-1 };
+
+function clearSpot(){ document.querySelectorAll('.spot').forEach(e=>e.classList.remove('spot')); }
+function coach(html, targetSel){
+  $('#coachTxt').innerHTML = html;
+  $('#coach').classList.remove('hide');
+  clearSpot();
+  const t = targetSel && document.querySelector(targetSel);
+  if(t) t.classList.add('spot');
+}
+function endTut(){
+  tut.on = false; tut.step = -1;
+  $('#coach').classList.add('hide');
+  clearSpot();
+}
+function tutStep(n){
+  if(!tut.on || n <= tut.step) return;
+  tut.step = n;
+  switch(n){
+    case 0: coach('Tap a card. <b>▲</b> breaks their front card · <b>⬢</b> protects yours · <b>✦</b> is what it scores if it survives.', '.handwrap'); break;
+    case 1: coach('Now tap a lane to commit it face down. Your opponent is choosing at the same moment — neither of you can see the other.', '#board'); break;
+    case 2: coach('Strike <b>≥</b> Guard <b>routs</b> a card, so it scores nothing. Double their Guard and it is <b>eliminated</b> — gone for the whole run. New cards go to the <b>front</b>, so what you place next defends the stack.', '#board'); break;
+    case 3: coach('Last wave. Each lane\'s <b>bounty</b> goes to whoever has the most <b>✦</b> still standing in it.', '#board'); break;
+    case 4: coach('You win on <b>morale</b>, not kills — your leader, plus surviving cards, plus lane bounties.', '#endSlot'); break;
+  }
+}
 
 // ═══════════════════════════════════════════════ ENEMY AI
 function enemyChoose(){
@@ -607,6 +727,8 @@ async function place(lane){
 
   G.wave++;
   render();
+  if(G.wave === 2) tutStep(2);
+  if(G.wave === 3) tutStep(3);
 
   if(G.wave > WAVES){ await wait(350); finish(); }
   else busy = false;
@@ -724,6 +846,7 @@ function finish(){
 
   say(`Warband: <b>${deckAfter}</b> cards. Eliminated cards never come back.`);
   render();
+  tutStep(4);
 }
 
 // ═══════════════════════════════════════════════ BOOT
@@ -757,6 +880,7 @@ function threatLine(f){
 
 function offerBranch(){
   hideOverlays();
+  if(tut.step >= 4) endTut();        // first fight taught it; stop talking
   const opts = run.ladder[run.rung];
   const boss = run.rung >= 3;
 
@@ -878,7 +1002,10 @@ function showPicker(){
   $('#factionPick').classList.remove('hide');
 }
 
-$('#restart').onclick = showPicker;
+$('#restart').onclick   = showPicker;
+$('#coachSkip').onclick = endTut;
+$('#help').onclick      = ()=>$('#rulesOv').classList.remove('hide');
+$('#rulesClose').onclick= ()=>$('#rulesOv').classList.add('hide');
 
 // a valid board exists behind the overlay so render() never sees a null side
 playerFaction = 'HUMANS';
