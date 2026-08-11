@@ -567,7 +567,10 @@ function render(){
 
   $('#board').innerHTML = LANE_BOUNTY.map((b,i)=>{
     const eFrontId = (frontOf(G.them,i)||{}).id, pFrontId = (frontOf(G.you,i)||{}).id;
-    const eStack = G.them.lanes[i].map(c=>cardHTML(c,'them',c.id===eFrontId)).join('');
+    // Index 0 is always the front of a stack. The enemy column sits above the
+    // divider, so theirs renders reversed — the front card ends up nearest the
+    // middle of the field, facing yours, the way both sides' fronts should.
+    const eStack = G.them.lanes[i].slice().reverse().map(c=>cardHTML(c,'them',c.id===eFrontId)).join('');
     const pStack = G.you.lanes[i].map(c=>cardHTML(c,'you',c.id===pFrontId)).join('');
     const pm = laneMorale(G.you,i), em = laneMorale(G.them,i);
     const held = pm>em ? '<span class="held" style="color:var(--you)">YOU HOLD</span>'
@@ -677,10 +680,16 @@ function drawCoach(){
   tx.style.left = tLeft + 'px';
   tx.style.top  = tTop  + 'px';
 
+  // Land on the ellipse edge that actually faces the note. Walking out from the
+  // centre toward the arrow's origin guarantees the tip touches the curve from
+  // whatever direction it approaches, instead of a fixed top/bottom point.
   const x1 = tLeft + tw*0.42;
   const y1 = above ? tTop + th + 6 : tTop - 6;
-  const y2 = above ? cy - ry - 7   : cy + ry + 7;
-  const arr = sketchArrow(x1, y1, cx + (seed%2?-16:16), y2, seed);
+  const dx = x1 - cx, dy = y1 - cy;
+  const norm = Math.sqrt((dx/rx)**2 + (dy/ry)**2) || 1;
+  const ex = dx/norm, ey = dy/norm;                 // vector centre -> edge
+  const gap = 1 + 5/(Math.hypot(ex,ey) || 1);       // stop just outside the ink
+  const arr = sketchArrow(x1, y1, cx + ex*gap, cy + ey*gap, seed);
 
   svg.innerHTML = `
     <g fill="none" stroke="#ffc44a" stroke-linecap="round" stroke-linejoin="round" class="inked">
