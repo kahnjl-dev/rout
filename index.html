@@ -152,6 +152,40 @@
     padding:10px;font-family:inherit;font-size:11px;letter-spacing:.1em;flex:1;
   }
   .hint{margin-top:8px;font-size:10.5px;color:var(--faint);line-height:1.55}
+  .foot{
+    margin-top:9px;display:flex;align-items:center;justify-content:center;gap:9px;
+    font-size:10.5px;color:#3d444f;
+  }
+  .flink{
+    background:none;border:none;color:var(--faint);font-family:inherit;
+    font-size:10.5px;letter-spacing:.14em;cursor:pointer;padding:7px 4px;
+  }
+  .flink:hover,.flink:active{color:var(--text)}
+  .flink.strong{color:var(--m);opacity:.8}
+  .flink.strong:hover,.flink.strong:active{opacity:1;color:var(--m)}
+
+  /* ---- build log, long-form reading ---- */
+  .logbox{width:100%;max-width:660px;padding:4px 2px 30px}
+  .log h1{font-size:15px;letter-spacing:.2em;color:var(--text);margin-bottom:4px;font-weight:600}
+  .log .lede{font-size:12px;color:var(--m);letter-spacing:.06em;margin-bottom:20px}
+  .log h2{
+    font-size:11px;letter-spacing:.18em;color:var(--m);font-weight:600;
+    margin:26px 0 9px;padding-top:14px;border-top:1px solid var(--line);
+  }
+  .log p{font-size:13px;line-height:1.75;color:var(--dim);margin-bottom:11px}
+  .log p b,.log li b{color:var(--text);font-weight:600}
+  .log ul{list-style:none;padding:0;margin:0 0 12px}
+  .log li{font-size:13px;line-height:1.7;color:var(--dim);padding:3px 0 3px 15px;position:relative}
+  .log li:before{content:'—';position:absolute;left:0;color:#3d444f}
+  .log .data{
+    font-size:11.5px;line-height:1.7;color:var(--dim);background:#0f1319;
+    border:1px solid var(--line);border-left:2px solid var(--m);
+    border-radius:6px;padding:10px 12px;margin:0 0 13px;white-space:pre;overflow-x:auto;
+  }
+  .log .aside{
+    font-size:12.5px;line-height:1.7;color:var(--faint);
+    border-left:2px solid var(--line);padding:2px 0 2px 12px;margin:0 0 13px;
+  }
 
   /* ---- run-start faction pick ---- */
   .overlay{
@@ -252,7 +286,7 @@
     .hc{padding:6px 4px 5px}
     .msg{min-height:24px;padding:6px 10px;margin-top:5px}
     .ctrls{margin-top:5px}
-    .hint{display:none}          /* the ? in the header carries this */
+    .foot{margin-top:5px}
   }
 
   /* Landscape phone: the single column put the hand below the fold from wave 1,
@@ -272,7 +306,7 @@
     #msg        {grid-column:2; grid-row:4; margin-top:0}
     #endSlot    {grid-column:2; grid-row:5}
     .ctrls      {grid-column:2; grid-row:6}
-    .hint       {display:none}
+    .foot       {grid-column:2; grid-row:7; margin-top:5px}
     .lane{min-height:120px}
     .hand{flex-wrap:wrap}
     .hc{flex:1 1 44%}
@@ -325,8 +359,10 @@
     <button class="btn" id="restart">NEW RUN</button>
   </div>
 
-  <div class="hint">
-    Rules any time via <b>?</b> up top.
+  <div class="foot">
+    <button class="flink" id="openRules">RULES</button>
+    <span>·</span>
+    <button class="flink strong" id="openLog">HOW THIS WAS BUILT</button>
   </div>
 
 </div>
@@ -346,6 +382,103 @@
   <svg id="coachSvg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
   <div class="scrawl" id="scrawl"></div>
 </div>
+
+<div class="overlay hide" id="logOv"><div class="logbox"><div class="log">
+  <h1>HOW THIS WAS BUILT</h1>
+  <div class="lede">A couple of days. One person, no engineers, directing an AI coding agent.</div>
+
+  <p>I'm not a programmer. I design systems and direct agents to build them — I do the scoping,
+  the reviewing, and the design calls; the agent writes the code. ROUT exists to show what that
+  process actually looks like, so this is an honest account of it, including the parts where I
+  was wrong and the parts where the agent was.</p>
+
+  <h2>PICKING SOMETHING WORTH BUILDING</h2>
+  <p>I came in with two candidates: card combat, or small-grid tactics. The agent argued against
+  the card game — a card game's depth scales with its card list, and two days buys you fifteen
+  cards and an unflattering comparison to Slay the Spire.</p>
+  <p>I pushed back, because my reference wasn't a deckbuilder. It was the combat system from the
+  board game <b>Forbidden Stars</b>: both sides commit a card face down, reveal simultaneously,
+  resolve over three rounds, and win on <b>morale</b> rather than kills. The agent had reasoned
+  from memory rather than the rules. It went and read them, and reversed its own recommendation.</p>
+  <p>That set the working pattern for everything after: I bring the design intent, the agent
+  stress-tests it, and whoever has the better evidence wins.</p>
+
+  <h2>THE CALLS THAT SHAPED IT</h2>
+  <p>The first real mechanic proposed to me was an opponent whose "tells" became less honest as
+  you read them correctly. I killed it. A system that changes its reliability mid-fight doesn't
+  read as cunning, it reads as the game cheating. We moved that dial onto the enemy itself —
+  some warbands are easier to read than others — and then cut tells entirely from the first
+  version, because if the underlying trade-off isn't interesting, no information layer rescues it.</p>
+  <p>Scoring went through three versions before it worked. Scoring your <b>unspent hand</b> sounded
+  elegant and played terribly — every turn was a pure loss, and you could only ever go down. Moving
+  the score onto the <b>board</b> fixed it: your cards are simultaneously your weapons and your
+  points, so the thing you're risking and the thing you're scored on are the same object.</p>
+  <p>Then a problem the agent surfaced that I hadn't seen: with three identical lanes, the opening
+  placement was a <i>meaningless</i> choice — not a hard one, a fake one. Lane bounties fixed it in
+  one number per lane, and turned the whole board into an area-control fight.</p>
+  <p>Some calls were about restraint. The run is a deliberate <b>death march</b> — you only ever get
+  weaker, and only the boss pays out. When the agent built an ascension loop on top of that, I cut it.
+  It was scope creep wearing a good idea's clothes.</p>
+
+  <h2>WHERE MEASUREMENT BEAT OPINION</h2>
+  <p>The most useful thing about working this way is that you can <i>ask</i> instead of arguing.
+  Every balance question got answered by simulating thousands of runs, not by anyone's taste.</p>
+  <p>The ladder was quietly unwinnable and nobody would have noticed by feel:</p>
+  <div class="data">                BEFORE            AFTER
+HUMANS     boss won 10%      boss won 36%
+GOBLINS    boss won  3%      boss won 29%
+DWARVES    boss won  5%      boss won 32%
+           wiped out 49-83%  wiped out 13-34%</div>
+  <p>A reviewer would have played it, lost four fights, and never seen the boss. The fix wasn't
+  intuition — it was finding that the loss penalty compounded into a death spiral, and that the
+  difficulty knob everyone reaches for (hand size) does <b>nothing</b>: 5, 6 or 7 cards produced
+  40%, 39%, 40%.</p>
+  <p>Simulation also killed a change that sounded obviously correct. I had the agent reward the AI
+  for <i>flipping</i> a lane it was losing rather than padding one it held. Measured, it made the
+  game <b>more</b> exploitable, not less — the best fixed counter-strategy went from 59% to 70% —
+  because a lane you can't flip scores zero, so the AI stopped contesting entirely. We reverted it
+  and left the finding in the code comment so nobody re-tries it.</p>
+  <div class="aside">Two bugs were only visible because we measured: the balance harness was placing
+  the player's card before asking the AI to choose, so it was being scored while peeking at a wave
+  it's blind to. And the lane totals were counting face-down cards — leaking the opponent's
+  commitment during the exact beat that's supposed to be hidden.</div>
+
+  <h2>THE OPPONENT</h2>
+  <p>With tells cut, the only read you get is <i>where</i> the enemy places. So the factions had to
+  play visibly differently. My first instinct — make the goblins both swarm and seek out fights —
+  turned out to be impossible, and the sweep proved it: across six weightings, their tendency to
+  pile up and their tendency to chase you moved strictly inversely.</p>
+  <p>So each faction owns one behaviour instead. Goblins hunt you, Humans form up, Dwarves garrison
+  every approach. What you learn from watching wave one is a different <i>kind</i> of fact for each
+  of them, rather than more or less of the same one.</p>
+  <div class="data">              contest    pile    spread
+GOBLINS  hunt      50%      12%       21%
+HUMANS   mass      17%      83%        0%
+DWARVES  hold      20%       0%       55%</div>
+
+  <h2>WHAT I'D DO NEXT</h2>
+  <ul>
+    <li>Bring tells back now that the underlying trade-off holds up on its own</li>
+    <li>Faction initiative — deliberately deferred, because it breaks simultaneity, which is the whole core</li>
+    <li>Give the Dwarves an answer to a concentrated stack; they currently have neither the Strike
+      to break one nor the numbers to out-score it</li>
+    <li>Real players. Every number here comes from simulation, which tells you what is
+      <i>possible</i>, never what is <i>fun</i></li>
+  </ul>
+
+  <h2>WHAT THIS DEMONSTRATES</h2>
+  <p>Not that an agent can write a card game — that's not in question. What's worth showing is the
+  division of labour: the agent is fast and tireless and will confidently build the wrong thing;
+  the judgement about what's worth building, what to cut, and when a measurement is lying to you
+  has to come from somewhere. Every decision above was mine. Every line of code was the agent's.</p>
+  <p>The practice that made it work is small and repeatable — <b>simulate before you argue</b>,
+  <b>keep the rejected experiments and their data</b>, and <b>assert your invariants</b> so the
+  thing that broke once can't break again quietly.</p>
+</div>
+<div class="picks" style="margin-top:20px">
+  <button class="pk" id="logClose"><div class="top"><span class="fn">BACK TO THE GAME</span></div></button>
+</div>
+</div></div>
 
 <div class="overlay hide" id="rulesOv"><div class="pickbox">
   <h2>HOW IT WORKS</h2>
@@ -1222,9 +1355,15 @@ function showRunEnd(bossWon, wiped){
     <h2>${title}</h2>
     <div class="runstat">${body}<br>
       <b>${run.wins}</b> won · <b>${run.losses}</b> lost · playing <b>${FACTIONS[playerFaction].name}</b></div>
-    <div class="picks"><button class="pk" id="again"><div class="top">
-      <span class="fn">RUN AGAIN</span><span class="lead">new road, new warband</span></div></button></div>`;
+    <div class="picks">
+      <button class="pk" id="again"><div class="top">
+        <span class="fn">RUN AGAIN</span><span class="lead">new road, new warband</span></div></button>
+      <button class="pk" id="againLog"><div class="top">
+        <span class="fn" style="color:var(--m)">HOW THIS WAS BUILT</span>
+        <span class="lead">the process, and what it measured</span></div></button>
+    </div>`;
   $('#again').onclick = showPicker;
+  $('#againLog').onclick = openLog;
   $('#runEnd').classList.remove('hide');
 }
 
@@ -1252,9 +1391,15 @@ function showPicker(){
   $('#factionPick').classList.remove('hide');
 }
 
-$('#restart').onclick   = showPicker;
-$('#help').onclick      = ()=>$('#rulesOv').classList.remove('hide');
-$('#rulesClose').onclick= ()=>$('#rulesOv').classList.add('hide');
+const openRules = ()=>$('#rulesOv').classList.remove('hide');
+const openLog   = ()=>{ $('#logOv').classList.remove('hide'); $('#logOv').scrollTop = 0; };
+
+$('#restart').onclick    = showPicker;
+$('#help').onclick       = openRules;
+$('#openRules').onclick  = openRules;
+$('#rulesClose').onclick = ()=>$('#rulesOv').classList.add('hide');
+$('#openLog').onclick    = openLog;
+$('#logClose').onclick   = ()=>$('#logOv').classList.add('hide');
 
 // a valid board exists behind the overlay so render() never sees a null side
 playerFaction = 'HUMANS';

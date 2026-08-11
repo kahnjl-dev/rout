@@ -47,9 +47,11 @@ Only the boss pays out.
 
 ## Building it
 
-Made in a couple of days as a portfolio piece, directing AI coding agents — scoping,
-reviewing, and making the design calls rather than writing the code. A write-up of that
-process lives in [BUILDLOG.md](BUILDLOG.md).
+Made in a couple of days as a portfolio piece, directing an AI coding agent — scoping,
+reviewing, and making the design calls rather than writing the code. The build log is
+**inside the game** — "HOW THIS WAS BUILT" at the bottom of the page, or at the end of a
+run. It covers the design calls, the ones I reversed, and the balance changes that came
+out of simulating thousands of runs rather than out of anyone's taste.
 
 Earlier throwaway versions are kept in [`prototypes/`](prototypes/) because the dead ends
 are half the story.
