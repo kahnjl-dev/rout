@@ -40,28 +40,29 @@
   .board{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin:7px 0}
   .lane{
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:6px;display:flex;flex-direction:column;gap:5px;min-height:246px;
+    padding:6px;display:flex;flex-direction:column;gap:5px;min-height:172px;
     transition:border-color .15s,background .15s;
   }
   .lane.pick{border-color:var(--you);background:#18211c;cursor:pointer}
   .lane.pick:active{transform:scale(.99)}
-  .stack{display:flex;flex-direction:column;gap:4px;min-height:96px}
+  /* lanes were 291px tall and mostly empty; the reclaimed space pays for larger text */
+  .stack{display:flex;flex-direction:column;gap:4px;min-height:46px}
   .stack.them{justify-content:flex-end}
   .bounty{
     text-align:center;font-size:10px;letter-spacing:.12em;color:var(--m);
     border-top:1px dashed #2f3742;border-bottom:1px dashed #2f3742;padding:4px 0;
   }
   .bounty b{font-size:13px}
-  .bounty .held{display:block;font-size:9px;color:var(--faint);letter-spacing:.08em;margin-top:1px}
-  .ltot{font-size:9.5px;color:var(--faint);text-align:center;letter-spacing:.06em;min-height:12px}
+  .bounty .held{display:block;font-size:10px;color:var(--dim);letter-spacing:.06em;margin-top:2px}
+  .ltot{font-size:11px;color:var(--dim);text-align:center;letter-spacing:.04em;min-height:14px}
 
   /* cards */
   .c{
     border:1px solid var(--line);border-radius:6px;background:#0f1319;
     padding:5px 5px 4px;position:relative;
   }
-  .c .nm{font-size:8.5px;letter-spacing:.1em;color:var(--faint);margin-bottom:3px;text-align:center}
-  .c .st{display:flex;justify-content:space-between;gap:2px;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .c .nm{font-size:9.5px;letter-spacing:.08em;color:var(--dim);margin-bottom:3px;text-align:center}
+  .c .st{display:flex;justify-content:space-between;gap:2px;font-size:12.5px;font-variant-numeric:tabular-nums}
   .c .st span{display:flex;align-items:center;gap:1px}
   .c .sv{color:var(--s)} .c .gv{color:var(--g)} .c .mv{color:var(--m)}
   .c.front{border-color:#3d4753;box-shadow:0 0 0 1px #1d232c inset}
@@ -71,7 +72,7 @@
   .c.gone{opacity:.3;filter:grayscale(.7);border-color:#4a251c;background:#130c0a}
   .c.gone .nm,.c.gone .st{text-decoration:line-through;text-decoration-thickness:1px}
   .c .fate{
-    display:block;text-align:center;font-size:7.5px;letter-spacing:.09em;
+    display:block;text-align:center;font-size:9px;letter-spacing:.06em;
     font-weight:700;margin-top:3px;padding-top:2px;border-top:1px solid currentColor;
   }
   .c.routed .fate{color:var(--m)}
@@ -167,8 +168,9 @@
     cursor:pointer;transition:border-color .14s,background .14s,transform .1s;text-align:left;
     font-family:inherit;color:var(--text);width:100%;
   }
+  /* :active mirrors every :hover — hover never fires on touch */
   .pk:hover{border-color:#3d4753;background:#1a1f26}
-  .pk:active{transform:scale(.99)}
+  .pk:active{transform:scale(.99);border-color:#4a5563;background:#1e242c}
   .pk .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
   .pk .fn{font-size:14px;letter-spacing:.2em;font-weight:600}
   .pk .lead{font-size:10px;letter-spacing:.1em;color:var(--dim)}
@@ -210,16 +212,19 @@
     background:none;border:none;cursor:pointer;font-family:inherit;
     font-size:12.5px;color:#9a8b63;text-decoration:underline;padding:2px 4px;
   }
-  .scrawl .sk:hover{color:#ffd06b}
+  .scrawl .sk:hover,.scrawl .sk:active{color:#ffd06b}
   @keyframes inkin{from{opacity:0}to{opacity:1}}
   .inked{animation:inkin .45s ease-out both}
 
   /* ---- help ---- */
   .helpbtn{
     background:none;border:1px solid var(--line);color:var(--dim);border-radius:50%;
-    width:22px;height:22px;font-family:inherit;font-size:11px;cursor:pointer;line-height:1;
+    width:26px;height:26px;font-family:inherit;font-size:12px;cursor:pointer;line-height:1;
+    position:relative;
   }
-  .helpbtn:hover{color:var(--text);border-color:#3d4753}
+  /* keeps the circle small but gives it a 44px touch target */
+  .helpbtn::after{content:'';position:absolute;inset:-9px}
+  .helpbtn:hover,.helpbtn:active{color:var(--text);border-color:#3d4753;background:#161a20}
   .rules{font-size:11.5px;line-height:1.65;color:var(--dim)}
   .rules h3{font-size:10px;letter-spacing:.18em;color:var(--m);margin:13px 0 5px;font-weight:600}
   .rules h3:first-child{margin-top:0}
@@ -230,7 +235,50 @@
   .rules li:before{content:'·';position:absolute;left:2px;color:var(--faint)}
 
   .map{width:100%;max-width:310px;margin:0 auto 12px;display:block}
-  .map g[data-node]:hover circle:not([fill="transparent"]){filter:brightness(1.35)}
+
+  /* Short screens (iPhone SE and friends). Measured: stacking three cards into
+     one lane pushed the hand just below the fold while wave-3 input was still
+     needed. Reclaim the vertical padding rather than shrink the tap targets. */
+  @media (max-height: 660px){
+    body{padding:6px}
+    header{margin-bottom:5px}
+    .leader{padding:5px 11px}
+    .board{margin:5px 0;gap:5px}
+    .lane{min-height:138px;padding:5px;gap:4px}
+    .stack{min-height:38px}
+    .c{padding:4px 5px 3px}
+    .bounty{padding:3px 0}
+    .handwrap{padding:6px;margin-top:5px}
+    .hc{padding:6px 4px 5px}
+    .msg{min-height:24px;padding:6px 10px;margin-top:5px}
+    .ctrls{margin-top:5px}
+    .hint{display:none}          /* the ? in the header carries this */
+  }
+
+  /* Landscape phone: the single column put the hand below the fold from wave 1,
+     so every turn needed a scroll. There is ~800px of width going unused, so
+     the hand and readouts move alongside the board instead. */
+  @media (orientation: landscape) and (max-height: 520px){
+    #wrap{
+      max-width:960px;
+      display:grid; grid-template-columns:minmax(0,1fr) 288px;
+      column-gap:10px; align-items:start;
+    }
+    header      {grid-column:1 / -1; grid-row:1}
+    .leader.them{grid-column:1; grid-row:2}
+    #board      {grid-column:1; grid-row:3}
+    .leader.you {grid-column:1; grid-row:4}
+    .handwrap   {grid-column:2; grid-row:2 / 4; margin-top:0}
+    #msg        {grid-column:2; grid-row:4; margin-top:0}
+    #endSlot    {grid-column:2; grid-row:5}
+    .ctrls      {grid-column:2; grid-row:6}
+    .hint       {display:none}
+    .lane{min-height:120px}
+    .hand{flex-wrap:wrap}
+    .hc{flex:1 1 44%}
+  }
+  .map g[data-node]:hover circle:not([fill="transparent"]),
+  .map g[data-node]:active circle:not([fill="transparent"]){filter:brightness(1.35)}
   .pen{
     margin-top:8px;font-size:11px;line-height:1.5;color:var(--m);
     background:rgba(255,196,74,.08);border:1px solid rgba(255,196,74,.25);
