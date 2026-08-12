@@ -199,6 +199,16 @@
   .overlay > *{margin-block:auto}
   .overlay.hide{display:none}
   .pickbox{width:100%;max-width:460px}
+  .brand{text-align:center;margin-bottom:26px}
+  .btitle{
+    font-size:34px;letter-spacing:.34em;font-weight:600;color:var(--text);
+    line-height:1;margin-bottom:11px;text-indent:.34em;
+  }
+  .bsub{font-size:12px;letter-spacing:.1em;color:var(--dim);margin-bottom:10px}
+  .brand .flink{font-size:11px;letter-spacing:.16em}
+  /* the tracked-out title exactly fills a 320px screen; ease it so it never clips */
+  @media (max-width:400px){ .btitle{font-size:27px;letter-spacing:.24em;text-indent:.24em} }
+  @media (orientation:landscape) and (max-height:520px){ .brand{margin-bottom:16px} .btitle{font-size:26px} }
   .pickbox h2{font-size:13px;letter-spacing:.24em;color:var(--dim);text-align:center;margin-bottom:5px;font-weight:600}
   .pickbox .sub2{font-size:11px;color:var(--faint);text-align:center;margin-bottom:16px;line-height:1.5}
   .picks{display:flex;flex-direction:column;gap:9px}
@@ -367,21 +377,21 @@
   <div class="foot">
     <button class="flink" id="openRules">RULES</button>
     <span>·</span>
-    <button class="flink strong" id="openLog">HOW THIS WAS BUILT</button>
+    <button class="flink strong" id="openLog">NOTES FROM THE DEVELOPER</button>
   </div>
 
 </div>
 
 <div class="overlay" id="factionPick">
   <div class="pickbox">
+    <div class="brand">
+      <div class="btitle">ROUT</div>
+      <div class="bsub">A one-day game jam roguelike card game</div>
+      <button class="flink strong" id="pickLog">NOTES FROM THE DEVELOPER</button>
+    </div>
     <h2>CHOOSE YOUR WARBAND</h2>
     <div class="sub2">Leader morale is your floor — the points you keep even if the field is lost.</div>
     <div class="picks" id="picks"></div>
-    <div class="foot" style="margin-top:16px">
-      <button class="flink" id="pickRules">RULES</button>
-      <span>·</span>
-      <button class="flink strong" id="pickLog">HOW THIS WAS BUILT</button>
-    </div>
   </div>
 </div>
 
@@ -1327,8 +1337,8 @@ function showRunEnd(bossWon, wiped){
       <button class="pk" id="again"><div class="top">
         <span class="fn">RUN AGAIN</span><span class="lead">new road, new warband</span></div></button>
       <button class="pk" id="againLog"><div class="top">
-        <span class="fn" style="color:var(--m)">HOW THIS WAS BUILT</span>
-        <span class="lead">the process, and what it measured</span></div></button>
+        <span class="fn" style="color:var(--m)">NOTES FROM THE DEVELOPER</span>
+        <span class="lead">how this was built</span></div></button>
     </div>`;
   $('#again').onclick = showPicker;
   $('#againLog').onclick = openLog;
@@ -1368,8 +1378,7 @@ $('#openRules').onclick  = openRules;
 $('#rulesClose').onclick = ()=>$('#rulesOv').classList.add('hide');
 $('#openLog').onclick    = openLog;
 $('#logClose').onclick   = ()=>$('#logOv').classList.add('hide');
-// the picker covers the whole screen on load, so the landing screen needs its own pair
-$('#pickRules').onclick  = openRules;
+// the picker covers the whole screen on load, so it carries its own link
 $('#pickLog').onclick    = openLog;
 
 // a valid board exists behind the overlay so render() never sees a null side
