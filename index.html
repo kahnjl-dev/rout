@@ -395,78 +395,53 @@
 
 <div class="overlay hide" id="logOv"><div class="logbox"><div class="log">
   <h1>HOW THIS WAS BUILT</h1>
-  <div class="lede">A card game built in a single day, fitted around everything else that day.
-  I designed it; an AI agent wrote the code. This is how it changed along the way.</div>
+  <div class="lede">My design, ideated and built in less than a day by Claude Code. I'm not a
+  programmer. I decided what to build, what to cut, and what was fun. The agent did the rest.</div>
 
-  <h2>1 · WHERE IT STARTED</h2>
-  <p>The idea came from a board game called Forbidden Stars. Both players secretly pick a card,
-  reveal at the same moment, and fight it out over three rounds. The part I wanted was the scoring:
-  <b>you don't win by killing things, you win on morale.</b> Destroying an enemy card is just one
-  way of taking its points off the board.</p>
-  <p>The first design added a bluffing layer on top. The enemy would hint at what it was about to
-  play — and the better you got at reading those hints, the more often it would lie to you.</p>
+  <h2>1 · THE STARTING IDEA</h2>
+  <p>The inspirations were the board game Forbidden Stars, the original Heroes of Might and Magic
+  Digital Card Game, and Total War Warhammer 3. Both players pick a card in secret, reveal at the
+  same moment, and compare stats in combat lanes. The fight goes three rounds. What I wanted was
+  its scoring: morale wins the game, not bodies. Killing an enemy card is one way to take points
+  off the board, but not the only way to win.</p>
+  <p>The first version stacked a bluff on top. The enemy would telegraph its next play, and the
+  better you got at reading the tells, the more often it would lie.</p>
 
-  <h2>2 · WHAT CHANGED FIRST</h2>
-  <p>The bluffing went in the bin. An opponent that gets less honest while you're playing doesn't
-  feel cunning, it feels like the game is cheating. So we cut the hints entirely, on the grounds
-  that if the basic decision underneath — which card, which lane — wasn't interesting on its own,
-  no amount of mind games layered on top was going to save it.</p>
-  <p>That immediately exposed a real problem. With three identical lanes, your opening move was a
-  <b>fake choice</b>: it looked like a decision, but nothing was riding on which lane you picked.
-  Giving each lane a points bounty fixed it — one number per lane, and suddenly there's ground
-  worth fighting over and a reason to care where you commit.</p>
+  <h2>2 · CUTTING THE BLUFF</h2>
+  <p>This proved to be not fun. An opponent that gets less honest the better you play just feels
+  like the game cheating. Pulling it revealed that three identical lanes meant your opening move
+  was a fake choice. It gave an illusion of a decision, but wasn't a meaningful choice. Giving each
+  lane its own points bounty fixed it and also emulates historical warfare (hold a strong center,
+  or defeat the center if you can take both flanks).</p>
 
-  <h2>3 · WHAT WE DISCOVERED</h2>
-  <p>Once it was playable we simulated thousands of complete runs to see whether the difficulty
-  was anywhere near right. It wasn't even close.</p>
-  <div class="data">                    BEFORE
-beat the final boss     3% - 10% of runs
-ran out of cards       49% - 83% of runs</div>
-  <p>A player was losing nearly every fight and running out of cards before the end. Anyone trying
-  this would have lost four fights in a row and never seen the final boss exist. You cannot feel a
-  problem like that from playing a few games yourself — it only shows up when you run thousands.</p>
+  <h2>3 · WHAT THE SIMULATION FOUND</h2>
+  <p>Once it was playable, the agent ran a thousand runs.</p>
+  <div class="data">Beat the final boss     3–10% of runs
+Ran out of cards       49–83% of runs</div>
+  <p>Players were losing nearly every fight and running dry before the end.</p>
 
-  <h2>4 · WHAT CHANGED NEXT</h2>
-  <p>Two things, both chosen by testing rather than guessing.</p>
-  <p>The enemies at the bottom of the ladder became genuinely weaker warbands, so the difficulty
-  ramps up instead of starting at the top. And losing a fight got much less punishing: it used to
-  cost you every damaged card at once, which meant losing made you more likely to lose again, and
-  again, until you had nothing left. Now it costs you one.</p>
-  <div class="data">                    BEFORE          AFTER
-beat the final boss     3% - 10%      29% - 36%
-ran out of cards       49% - 83%      13% - 34%</div>
-  <p>Worth noting what <i>didn't</i> work: the obvious lever — dealing the player more cards to
-  choose from — did nothing at all. Five, six or seven cards in hand produced win rates of 40%,
-  39% and 40%. On a one-day build there is no room to spend hours on changes that feel productive
-  and aren't — being able to check in seconds is most of the value.</p>
+  <h2>4 · TWO FIXES</h2>
+  <p>The warbands at the bottom of the ladder became genuinely weaker, so difficulty ramps instead
+  of starting at the ceiling.</p>
+  <p>The loss penalty (losing all routed cards) was weakened (lose 1 routed card).</p>
+  <div class="data">                        BEFORE      AFTER
+Beat the final boss     3–10%      29–36%
+Ran out of cards       49–83%      13–34%</div>
 
-  <h2>5 · WHAT CHANGED AFTER THAT</h2>
-  <p>The last problem was the enemy. With the bluffing cut, the only thing you can read about your
-  opponent is <b>where they put their cards</b> — so the three warbands had to behave visibly
-  differently, or every fight would feel the same.</p>
-  <p>My first instinct was to make the goblins both swarm together <i>and</i> chase you around the
-  board. Testing showed that's impossible: the more they chased, the less they swarmed, in a
-  straight line. So each faction got one behaviour of its own instead.</p>
+  <h2>5 · MAKING THE FACTIONS READ</h2>
+  <p>Last problem was the enemy. The three warbands had to behave visibly differently or every
+  fight would feel identical. Here's what we came up with.</p>
   <div class="data">GOBLINS   hunt you down, wherever you are
 HUMANS    form up and concentrate in one lane
-DWARVES   spread out and hold every lane at once</div>
-  <p>Now what you learn from watching the first move is a different <i>kind</i> of fact depending
-  on who you're fighting, and each one needs a different answer from you.</p>
+DWARVES   spread out and hold every lane</div>
 
   <h2>6 · WHERE IT LANDED</h2>
-  <p>A short run: three fights, then a boss, choosing your road as you go. You get weaker the whole
-  way down — cards you lose are gone — and only beating the boss gives anything back. A competent
-  player wins about half their fights and finishes the run roughly a third of the time.</p>
-  <p>What I'd do with more time: bring the bluffing back now that the fight underneath is solid,
-  give the dwarves some answer to being overwhelmed in one lane, and — most importantly — put it
-  in front of real people. Every number above comes from simulation, and simulation tells you what
-  is <i>possible</i>, never what is <i>fun</i>.</p>
-
-  <h2>HOW THE WORK WAS SPLIT</h2>
-  <p>I'm not a programmer. I decided what to build, what to cut, and when a result was worth
-  trusting; the agent wrote every line of code and ran every test. The useful part isn't that an
-  agent can write a card game — it's that the agent is fast, tireless, and perfectly willing to
-  build the wrong thing well. Someone still has to decide what's worth building.</p>
+  <p>Three fights, then a boss, choosing your road as you go. You get weaker the whole way down,
+  since cards you lose are gone for good, and only the boss gives anything back. A competent player
+  wins about half their fights and finishes the run roughly a third of the time.</p>
+  <p>Still open: the dwarves have no answer to being overwhelmed in one lane. The bluff could come
+  back now that the fight underneath holds up. And nobody has played this except a simulator, which
+  can tell you what's possible and has no opinion about what's fun.</p>
 </div>
 <div class="picks" style="margin-top:20px">
   <button class="pk" id="logClose"><div class="top"><span class="fn">BACK TO THE GAME</span></div></button>
