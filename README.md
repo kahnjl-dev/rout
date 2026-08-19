@@ -4,6 +4,12 @@ A small tactical card game about committing blind.
 
 **Play it in your browser — no install:** https://kahnjl-dev.github.io/rout/
 
+> **This version is frozen.** It is the build submitted with a job application,
+> tagged `v1.0-submission`, and it will not change. Development continues in a
+> separate repo that never merges back here:
+> [kahnjl-dev/rout-dev](https://github.com/kahnjl-dev/rout-dev) ·
+> [play the current build](https://kahnjl-dev.github.io/rout-dev/)
+
 ---
 
 ## The idea
@@ -55,22 +61,6 @@ out of simulating thousands of runs rather than out of anyone's taste.
 
 Earlier throwaway versions are kept in [`prototypes/`](prototypes/) because the dead ends
 are half the story.
-
-## Branches
-
-| Branch | What it is |
-|---|---|
-| `submission` | **What the public URL serves.** Frozen at the version sent with the job application. Also tagged `v1.0-submission`. |
-| `main` | Ongoing development. Pushing here does **not** change the live site. |
-
-To publish new work, merge it deliberately:
-
-```
-git checkout submission && git merge main && git push && git checkout main
-```
-
-Pages is deliberately pointed at `submission` rather than `main`, so the branch
-you work on by default can't disturb the link someone was given.
 
 ## Running it locally
 
